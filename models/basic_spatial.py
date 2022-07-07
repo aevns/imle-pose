@@ -1,42 +1,32 @@
 import torch.nn as nn
-from .layers.resnet import ResNet
+from .layers.resnet import BasicBlock
 
-class BasicSpatial(nn.Module):
-    def __init__(self, norm_layer=nn.BatchNorm2d):
-        super(BasicSpatial, self).__init__()
-        self.deconv_dim = (64,64,64)
-        self._norm_layer = norm_layer
-        self.deconv_layers = self._make_deconv_layer()
-        self.final_layer = nn.Conv2d(
-            64, 17, kernel_size=1, stride=1, padding=0)
-        self.preact = ResNet(f"resnet{18}")
+class Basic(nn.Module):
+    def __init__(self):
+        super(Basic, self).__init__()
 
-    def _make_deconv_layer(self):
-        deconv_layers = []
-        deconv1 = nn.ConvTranspose2d(
-            512, self.deconv_dim[0], kernel_size=4, stride=2, padding=int(4 / 2) - 1, bias=False)
-        bn1 = self._norm_layer(self.deconv_dim[0])
-        deconv2 = nn.ConvTranspose2d(
-            self.deconv_dim[0], self.deconv_dim[1], kernel_size=4, stride=2, padding=int(4 / 2) - 1, bias=False)
-        bn2 = self._norm_layer(self.deconv_dim[1])
-        deconv3 = nn.ConvTranspose2d(
-            self.deconv_dim[1], self.deconv_dim[2], kernel_size=4, stride=2, padding=int(4 / 2) - 1, bias=False)
-        bn3 = self._norm_layer(self.deconv_dim[2])
+        self.deconv_dim = (64,64)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
-        deconv_layers.append(deconv1)
-        deconv_layers.append(bn1)
-        deconv_layers.append(nn.ReLU(inplace=True))
-        deconv_layers.append(deconv2)
-        deconv_layers.append(bn2)
-        deconv_layers.append(nn.ReLU(inplace=True))
-        deconv_layers.append(deconv3)
-        deconv_layers.append(bn3)
-        deconv_layers.append(nn.ReLU(inplace=True))
+        self.conv1 = nn.Conv2d(4, 32, kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn1 = nn.BatchNorm2d(32, eps=1e-5, momentum=0.1, affine=True)
 
-        return nn.Sequential(*deconv_layers)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(64, eps=1e-5, momentum=0.1, affine=True)
+
+        self.deconv1 = nn.ConvTranspose2d(64, 64, kernel_size=3, stride=2, padding=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(64)
+
+        self.deconv2 = nn.ConvTranspose2d(64, 32, kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn4 = nn.BatchNorm2d(32)
+        
+        self.final_layer = nn.Conv2d(32, 17, kernel_size=1, stride=1, padding=0)
 
     def _initialize(self):
-        for name, m in self.deconv_layers.named_modules():
+        for name, m in self.named_modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.normal_(m.weight, std=0.001)
             if isinstance(m, nn.ConvTranspose2d):
                 nn.init.normal_(m.weight, std=0.001)
             elif isinstance(m, nn.BatchNorm2d):
@@ -48,7 +38,9 @@ class BasicSpatial(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
-        out = self.preact(x['image'])
-        out = self.deconv_layers(out)
+        out = self.maxpool(self.relu(self.bn1(self.conv1(x['image']))))
+        out = self.relu(self.bn2(self.conv2(out)))
+        out = self.relu(self.bn3(self.deconv1(out)))
+        out = self.relu(self.bn4(self.deconv2(out)))
         out = self.final_layer(out)
         return out
