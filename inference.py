@@ -15,10 +15,13 @@ from torch import dtype, uint8
 from tqdm import tqdm
 from collections import defaultdict
 
-from dataset import StickDataset
-from models.simple18 import SimplePose
+from dataset import HDF5Dataset
+from models.basic import Basic
+from models.basic_vector import BasicVector
+from models.basic_progressive import BasicProgressive
+from models.basic_spatial import BasicSpatial
 
-val_data = StickDataset((16,16),data_file="./data/stick/val.hdf5")
+val_data = HDF5Dataset((64,64), 0.5, "./data/stick/val.hdf5")
 
 val_loader = torch.utils.data.DataLoader(
     val_data,
@@ -29,14 +32,14 @@ val_loader = torch.utils.data.DataLoader(
     drop_last=True
 )
 
-network = SimplePose().cuda()
+network = BasicSpatial().cuda()
 
-state_dict = torch.load("./output/simple18/state_dict/network_39.pth")
+state_dict = torch.load("./output/spatial_swaps/state_dict/network_79.pth")
 network.load_state_dict(state_dict)
 
 val_iter = iter(val_loader)
 batch = next(val_iter)
-pred = network(batch)
+pred, _ = network.sample(batch)
 
 # plotting utility functions
 
@@ -52,10 +55,14 @@ r"""Plots skeleton pose on a matplotlib axis.
 def plot_skeleton(ax, pose_2d, bones=val_data.skeleton, linewidth=2, linestyle='-', label=None):
     cmap = plt.get_cmap('hsv')
     for i, bone in enumerate(bones):
-        color = cmap(bone[1] * cmap.N // len(val_data.keypoints)) # color according to second joint index
+        color = cmap((bone[1]-1) * cmap.N // len(val_data.keypoints)) # color according to second joint index
         if i!=0:
             label=None
-        ax.plot(pose_2d[bone[0]-1], pose_2d[bone[1]-1], linestyle, color=color, linewidth=linewidth, label=label)
+        ax.plot(
+            (pose_2d[bone[0]-1][0], pose_2d[bone[1]-1][0]),
+            (pose_2d[bone[0]-1][1], pose_2d[bone[1]-1][1]),
+            linestyle, color=color, linewidth=linewidth, label=label
+        )
 
 r"""Plots list of skeleton poses and image.
 
@@ -71,7 +78,7 @@ def plotPosesOnImage(poses, img, ax=plt, labels=None):
     img_size = torch.FloatTensor(img_pil.size)
     linestyles = ['-', '--', '-.', ':']
     for i, p in enumerate(poses):
-        pose_px = p*img_size
+        pose_px = p
         plot_skeleton(ax, pose_px, linestyle=linestyles[i%len(linestyles)], label=labels[i])
     ax.imshow(img_pil)
 
@@ -103,10 +110,10 @@ pred_cpu = pred.cpu().detach()
 
 pred_pose = torch.flatten(pred_cpu, start_dim=2)
 pred_pose = torch.argmax(pred_pose, dim=2)
-pred_pose = torch.stack([pred_pose // pred_cpu.shape[2], pred_pose % pred_cpu.shape[2]], -1)
+pred_pose = torch.stack([pred_pose % pred_cpu.shape[3], pred_pose // pred_cpu.shape[3]], -1)
 
 # plot the ground truth and the predicted pose on top of the image
-plotPosesOnImage([pred_pose[0].detach(), pose_cpu[0]], val_data.denormalize(image_cpu[0]), ax=axes[0], labels=['prediction', 'ground truth label'])
+plotPosesOnImage([pred_pose[0].detach(), pose_cpu[0]], val_data.denormalize(image_cpu[0])*255, ax=axes[0], labels=['prediction', 'ground truth label'])
 axes[0].set_title('Input image with predicted pose (solid) and GT pose (dashed)')
 axes[0].legend()
 
@@ -116,5 +123,5 @@ axes[1].set_title('Predicted probability map with predicted pose overlayed')
 axes[1].legend()
 
 plt.show()
-
+image_modified = val_data.denormalize(image_cpu[0])
 print('done')

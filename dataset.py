@@ -3,12 +3,11 @@ import torch
 import torchvision.transforms as transforms
 import h5py
 
-FloatTensor =  torch.cuda.FloatTensor
 Device = "cuda:0"
 
-class StickDataset(torch.utils.data.Dataset):
-    def __init__(self, heatmap_size, data_file = "./data/stick/train.hdf5"):
-        super(StickDataset).__init__();
+class HDF5Dataset(torch.utils.data.Dataset):
+    def __init__(self, heatmap_size, swap_rate = 0, data_file = "./data/stick/train.hdf5"):
+        super(HDF5Dataset).__init__();
 
         with h5py.File(data_file, 'r') as df:
             self.poses = torch.from_numpy(df['poses'][...]).to(Device)
@@ -20,20 +19,25 @@ class StickDataset(torch.utils.data.Dataset):
         self._sigma = 2
         self._feat_stride = np.array(self.images[0,0].shape) / np.array(heatmap_size)
 
+        if swap_rate > 0:
+            swaps = torch.rand(self.poses.shape[0], device=Device) < swap_rate
+            swapped_indices = torch.tensor([0,1,2,3,4,5,6,7,8,9,10,12,11,14,13,16,15], dtype=torch.long, device=Device)
+            self.poses[swaps] = self.poses[swaps][:,swapped_indices]
+
         # Dataset Specific (stick)
-        self.mean = FloatTensor([0.0280, 0.0251, 0.0286])
-        self.std = FloatTensor([0.0927, 0.0904, 0.1053])
+        self.mean = torch.tensor([0.0280, 0.0251, 0.0286], device=Device)
+        self.std = torch.tensor([0.0927, 0.0904, 0.1053], device=Device)
 
         # Generic (alphapose)
-        #self.mean = FloatTensor([0.406, 0.457, 0.480])
-        #self.std = FloatTensor([1., 1., 1.])
+        #self.mean = torch.tensor([0.406, 0.457, 0.480], device=Device)
+        #self.std = torch.tensor([1., 1., 1.], device=Device)
 
         self.normalize = transforms.Normalize(self.mean, self.std)
         self.denormalize = transforms.Compose([transforms.Normalize(mean = [ 0., 0., 0. ], std = 1/self.std),
                                                transforms.Normalize(mean = -self.mean, std = [ 1., 1., 1. ])])
     
     # converted from SimplePose target generator
-    # joints_3d -> joints_2d
+    # joints_3d -> joints_2d (joints_3d was (x,y,s), where s is a label mask)
     def _target_generator(self, joints_2d):
         num_joints = len(self.keypoints)
         target_weight = np.ones((num_joints, 1), dtype=np.float32)
@@ -81,7 +85,7 @@ class StickDataset(torch.utils.data.Dataset):
                   'pose': self.poses[idx],
                   'target': self._target_generator(self.poses[idx])[0]}
         return sample
-
+    
     @property
     def joint_pairs(self):
         #Joint pairs which defines the pairs of joint to be swapped
