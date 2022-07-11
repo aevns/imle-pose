@@ -1,9 +1,12 @@
 import torch
 import torch.nn as nn
+import models.utils.loss_functions as lf
 
 class BasicProgressive(nn.Module):
-    def __init__(self):
+    def __init__(self, loss_function = lf.heatmap_target_mse):
         super(BasicProgressive, self).__init__()
+
+        self.loss = loss_function
 
         self.relu = nn.ReLU(inplace=True)
 
@@ -58,7 +61,7 @@ class BasicProgressive(nn.Module):
         return out
     
     def sample(self, x):
-        z = torch.randn((x['image'].shape[0], 4))
+        z = torch.randn((x['image'].shape[0], 4), device="cuda:0")
         return self.forward(x, z), z
     
     def train_sample(self, x, n):
@@ -67,9 +70,9 @@ class BasicProgressive(nn.Module):
             pred = self.forward(x, z)
             if s == 0:
                 noise = z
-                losses = 0.5 * torch.mean(nn.MSELoss(reduction='none')(pred, x['target']), dim=(-3,-2,-1))
+                losses = self.loss(pred, x)
             else:
-                l = 0.5 * torch.mean(nn.MSELoss(reduction='none')(pred, x['target']), dim=(-3,-2,-1))
+                l = self.loss(pred, x)
                 mask = l < losses
                 losses[mask] = l[mask]
                 noise[mask] = z[mask]

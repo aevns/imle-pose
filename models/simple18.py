@@ -1,9 +1,13 @@
 import torch.nn as nn
 from .layers.resnet import ResNet
+import models.utils.loss_functions as lf
 
 class SimplePose(nn.Module):
-    def __init__(self, norm_layer=nn.BatchNorm2d):
+    def __init__(self, loss_function = lf.heatmap_target_mse, norm_layer=nn.BatchNorm2d):
         super(SimplePose, self).__init__()
+        
+        self.loss = loss_function
+
         self.deconv_dim = (64,64,64)
         self._norm_layer = norm_layer
         self.deconv_layers = self._make_deconv_layer()
@@ -52,3 +56,6 @@ class SimplePose(nn.Module):
         out = self.deconv_layers(out)
         out = self.final_layer(out)
         return out
+    
+    def sample(self, x):
+        return self.forward(x), None

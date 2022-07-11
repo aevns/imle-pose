@@ -6,35 +6,36 @@ import h5py
 Device = "cuda:0"
 
 class HDF5Dataset(torch.utils.data.Dataset):
-    def __init__(self, heatmap_size, swap_rate = 0, data_file = "./data/stick/train.hdf5"):
+    def __init__(self, data_file = "./data/stick/train.hdf5", swap_rate = 0, target_heatmap_size = None, target_heatmap_sigma = 2):
         super(HDF5Dataset).__init__();
 
         with h5py.File(data_file, 'r') as df:
             self.poses = torch.from_numpy(df['poses'][...]).to(Device)
             self.images  = torch.from_numpy(df['images'][...]).to(Device)
+            self.mean = torch.from_numpy(df['mean_color'][...]).to(Device)
+            self.std = torch.from_numpy(df['std_color'][...]).to(Device)
             self.keypoints = df['keypoints'][...]
             self.skeleton = df['skeleton'][...]
-        
-        self._heatmap_size = heatmap_size
-        self._sigma = 2
-        self._feat_stride = np.array(self.images[0,0].shape) / np.array(heatmap_size)
 
+        self.normalize = transforms.Normalize(self.mean, self.std)
+        self.denormalize = transforms.Compose([
+            transforms.Normalize(mean = [ 0., 0., 0. ], std = 1/self.std),
+            transforms.Normalize(mean = -self.mean, std = [ 1., 1., 1. ])]
+            )
+        
         if swap_rate > 0:
             swaps = torch.rand(self.poses.shape[0], device=Device) < swap_rate
             swapped_indices = torch.tensor([0,1,2,3,4,5,6,7,8,9,10,12,11,14,13,16,15], dtype=torch.long, device=Device)
             self.poses[swaps] = self.poses[swaps][:,swapped_indices]
 
-        # Dataset Specific (stick)
-        self.mean = torch.tensor([0.0280, 0.0251, 0.0286], device=Device)
-        self.std = torch.tensor([0.0927, 0.0904, 0.1053], device=Device)
+        if target_heatmap_size is None:
+            self.get_target = lambda idx: torch.empty(0)
+        else:
+            self._heatmap_size = target_heatmap_size
+            self._sigma = 2
+            self._feat_stride = np.array(self.images[0,0].shape) / np.array(self._heatmap_size)
 
-        # Generic (alphapose)
-        #self.mean = torch.tensor([0.406, 0.457, 0.480], device=Device)
-        #self.std = torch.tensor([1., 1., 1.], device=Device)
-
-        self.normalize = transforms.Normalize(self.mean, self.std)
-        self.denormalize = transforms.Compose([transforms.Normalize(mean = [ 0., 0., 0. ], std = 1/self.std),
-                                               transforms.Normalize(mean = -self.mean, std = [ 1., 1., 1. ])])
+            self.get_target = lambda idx: self._target_generator(self.poses[idx])[0]
     
     # converted from SimplePose target generator
     # joints_3d -> joints_2d (joints_3d was (x,y,s), where s is a label mask)
@@ -81,9 +82,9 @@ class HDF5Dataset(torch.utils.data.Dataset):
         return self.poses.shape[0]
     
     def __getitem__(self, idx):
-        sample = {'image': self.normalize(self.images[idx].float()/255),
+        sample = {'image': self.normalize(self.images[idx].float()),
                   'pose': self.poses[idx],
-                  'target': self._target_generator(self.poses[idx])[0]}
+                  'target': self.get_target(idx)}
         return sample
     
     @property

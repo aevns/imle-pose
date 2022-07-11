@@ -1,10 +1,13 @@
 import torch
 import torch.nn as nn
-from .utils.perlin_noise import perlin_ms
+import models.utils.loss_functions as lf
+from models.utils.perlin_noise import perlin_ms
 
 class BasicSpatial(nn.Module):
-    def __init__(self):
+    def __init__(self, loss_function = lf.heatmap_target_mse):
         super(BasicSpatial, self).__init__()
+
+        self.loss = loss_function
 
         self.relu = nn.ReLU(inplace=True)
 
@@ -64,9 +67,9 @@ class BasicSpatial(nn.Module):
             pred = self.forward(x, z)
             if s == 0:
                 noise = z
-                losses = 0.5 * torch.mean(nn.MSELoss(reduction='none')(pred, x['target']), dim=(-3,-2,-1))
+                losses = self.loss(pred, x)
             else:
-                l = 0.5 * torch.mean(nn.MSELoss(reduction='none')(pred, x['target']), dim=(-3,-2,-1))
+                l = self.loss(pred, x)
                 mask = l < losses
                 losses[mask] = l[mask]
                 noise[mask] = z[mask]

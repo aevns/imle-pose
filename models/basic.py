@@ -1,9 +1,12 @@
 import torch
 import torch.nn as nn
+import models.utils.loss_functions as lf
 
 class Basic(nn.Module):
-    def __init__(self):
+    def __init__(self, loss_function = lf.heatmap_target_mse):
         super(Basic, self).__init__()
+
+        self.loss = loss_function
 
         self.relu = nn.ReLU(inplace=True)
 
@@ -29,15 +32,11 @@ class Basic(nn.Module):
         for name, m in self.named_modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.normal_(m.weight, std=0.001)
-            if isinstance(m, nn.ConvTranspose2d):
+            elif isinstance(m, nn.ConvTranspose2d):
                 nn.init.normal_(m.weight, std=0.001)
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
-        for m in self.final_layer.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.normal_(m.weight, std=0.001)
-                nn.init.constant_(m.bias, 0)
+            #elif isinstance(m, nn.BatchNorm2d):
+            #    nn.init.constant_(m.weight, 1)
+            #    nn.init.constant_(m.bias, 0)
 
     def forward(self, x): # (3, 64, 48)
         block1 = self.conv1(x['image']) # (32, 32, 24)
@@ -49,3 +48,6 @@ class Basic(nn.Module):
         out = self.relu(self.bn5(self.deconv3(out))) # (32, 64, 48)
         out = self.final_layer(out)# (17, 32, 24)
         return out
+    
+    def sample(self, x):
+        return self.forward(x), None

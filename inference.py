@@ -15,31 +15,39 @@ from torch import dtype, uint8
 from tqdm import tqdm
 from collections import defaultdict
 
+import models.utils.loss_functions as lf
+
 from dataset import HDF5Dataset
+from models.simple18 import SimplePose
 from models.basic import Basic
 from models.basic_vector import BasicVector
 from models.basic_progressive import BasicProgressive
 from models.basic_spatial import BasicSpatial
+from models.unet import UNet
+from models.unet_vector import UNetVector
+from models.dcignet import DCIGNet
 
-val_data = HDF5Dataset((64,64), 0.5, "./data/stick/val.hdf5")
+val_data = HDF5Dataset("./data/stick/val.hdf5", 0.5)
 
 val_loader = torch.utils.data.DataLoader(
     val_data,
     batch_size=1,
     num_workers=0,
     pin_memory=False,
-    shuffle=True,
+    shuffle=False,
     drop_last=True
 )
 
-network = BasicSpatial().cuda()
+network = UNetVector(loss_function = lf.heatmap_gaussian_fit_entropy).cuda()
 
-state_dict = torch.load("./output/spatial_swaps/state_dict/network_79.pth")
+state_dict = torch.load("./output/unet_vector_gaussian_swaps/state_dict/network_79.pth")
 network.load_state_dict(state_dict)
+network.training = False
 
 val_iter = iter(val_loader)
-batch = next(val_iter)
-pred, _ = network.sample(batch)
+for i in range(1):
+    batch = next(val_iter)
+pred, z = network.sample(batch)
 
 # plotting utility functions
 
@@ -108,17 +116,21 @@ image_cpu = batch['image'].cpu().detach()
 pose_cpu = batch['pose'].cpu().detach()
 pred_cpu = pred.cpu().detach()
 
-pred_pose = torch.flatten(pred_cpu, start_dim=2)
-pred_pose = torch.argmax(pred_pose, dim=2)
-pred_pose = torch.stack([pred_pose % pred_cpu.shape[3], pred_pose // pred_cpu.shape[3]], -1)
+#pred_pose = torch.flatten(pred_cpu, start_dim=2)
+#pred_pose = torch.argmax(pred_pose, dim=2)
+#pred_pose = torch.stack([pred_pose % pred_cpu.shape[3], pred_pose // pred_cpu.shape[3]], -1)
+#pred_heatmaps = pred_cpu
+
+pred_pose = lf.heatmap_gaussian_fit(pred_cpu)[:,:,0:2]
+pred_heatmaps = lf.heatmaps_normalized(pred_cpu)
 
 # plot the ground truth and the predicted pose on top of the image
-plotPosesOnImage([pred_pose[0].detach(), pose_cpu[0]], val_data.denormalize(image_cpu[0])*255, ax=axes[0], labels=['prediction', 'ground truth label'])
+plotPosesOnImage([pred_pose[0].detach(), pose_cpu[0]], val_data.denormalize(image_cpu[0]), ax=axes[0], labels=['prediction', 'ground truth label'])
 axes[0].set_title('Input image with predicted pose (solid) and GT pose (dashed)')
 axes[0].legend()
 
 # plot the predicted probability map and the predicted pose on top
-plotPosesOnImage([pred_pose[0].detach()], heatmap2image(pred_cpu[0]).detach(), ax=axes[1], labels=['prediction'])
+plotPosesOnImage([pred_pose[0].detach()], heatmap2image(pred_heatmaps[0]).detach(), ax=axes[1], labels=['prediction'])
 axes[1].set_title('Predicted probability map with predicted pose overlayed')
 axes[1].legend()
 

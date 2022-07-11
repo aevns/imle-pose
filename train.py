@@ -4,41 +4,42 @@ import os
 
 #from tqdm import tqdm
 
+import models.utils.loss_functions as lf
+
 from dataset import HDF5Dataset
-from models.basic import Basic
-from models.basic_vector import BasicVector
-from models.basic_progressive import BasicProgressive
-from models.basic_spatial import BasicSpatial
+from models.unet import UNet
+from models.unet_vector import UNetVector
 
 #########################################################################
 
-start_epoch = 0
+start_epoch = 40
 num_epochs = 80
 
 data_file = "./data/stick/train.hdf5"
 swap_rate = 0.5
 
-model_name = "spatial_swaps"
-model = BasicSpatial
-implicit = True
-samples = 16
+model_name = "unet_gaussian_swaps"
+model = UNet
+implicit = False
+samples = 6
+loss_function = lf.heatmap_gaussian_fit_entropy
 
 #########################################################################
 
 os.makedirs(os.path.dirname("output/{}/state_dict/".format(model_name)), exist_ok=True)
 
-train_data = HDF5Dataset((64,48), swap_rate, data_file)
+train_data = HDF5Dataset(data_file, swap_rate, (64, 48))
 
 train_loader = torch.utils.data.DataLoader(
     train_data,
-    batch_size=128,
+    batch_size=64,
     num_workers=0,
     pin_memory=False,
     shuffle=True,
     drop_last=True
 )
 
-network = model().cuda()
+network = model(loss_function=loss_function).cuda()
 if start_epoch > 0:
     state_dict = torch.load("./output/{}/state_dict/network_{}.pth".format(model_name, start_epoch - 1))
     network.load_state_dict(state_dict)
@@ -56,7 +57,7 @@ for e in range(start_epoch, num_epochs):
         else:
             pred = network(batch)
 
-        loss = 0.5 * torch.mean(nn.MSELoss(reduction='none')(pred, batch['target']))
+        loss = torch.mean(network.loss(pred, batch))
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()

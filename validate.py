@@ -1,46 +1,34 @@
-from cProfile import label
-import json
 import numpy as np
-import copy
-import random
 import torch
-import torch.nn as nn
-import h5py
 import os
 import re
 
 import matplotlib.pyplot as plt
 
-import torchvision.transforms as transforms
-import cv2
-
-from torch import dtype, uint8
-from tqdm import tqdm
-from collections import defaultdict
+import models.utils.loss_functions as lf
 
 from dataset import HDF5Dataset
-from models.basic import Basic
-from models.basic_vector import BasicVector
-from models.basic_progressive import BasicProgressive
-from models.basic_spatial import BasicSpatial
+from models.unet import UNet
+from models.unet_vector import UNetVector
 
 #########################################################################
 
 data_file = "./data/stick/val.hdf5"
-swap_rate = 0.5
 
-model_names = ["basic_swaps", "vector_swaps", "progressive_swaps", "spatial_swaps"]
-models = [Basic, BasicVector, BasicProgressive, BasicSpatial]
-implicit = [False, True, True, True]
-samples = [0, 5, 5, 5]
+models = [UNetVector, UNetVector, UNetVector, UNetVector, UNetVector]
+model_names = ["unet_vector_gaussian_swaps", "unet_vector_gaussian_swaps", "unet_vector_gaussian_swaps", "unet_vector_gaussian_swaps", "unet_vector_gaussian_swaps"]
+implicit = [True, True, True, True, True]
+samples = [1, 3, 5, 10, 20]
+swap_rates = [0.5, 0.5, 0.5, 0.5, 0.5]
+loss_function = lf.heatmap_gaussian_fit_entropy
 
 #########################################################################
 
-val_data = HDF5Dataset((64,48), swap_rate, data_file)
-
 all_losses = []
 for m in range(len(model_names)):
-    network = models[m]().cuda()
+    val_data = HDF5Dataset(data_file, swap_rates[m])
+
+    network = models[m](loss_function = lf.heatmap_gaussian_fit_entropy).cuda()
     network.training = False
     losses = []
 
@@ -52,7 +40,7 @@ for m in range(len(model_names)):
     for filename in files:
         val_loader = torch.utils.data.DataLoader(
             val_data,
-            batch_size=128,
+            batch_size=64,
             num_workers=0,
             pin_memory=False,
             shuffle=True,
@@ -75,7 +63,7 @@ for m in range(len(model_names)):
             else:
                 pred = network(batch)
 
-            loss = 0.5 * torch.mean(nn.MSELoss(reduction='none')(pred, batch['target']))
+            loss = torch.mean(network.loss(pred, batch))
             epoch_losses.append(loss.item())
 
         losses.append(np.average(epoch_losses))
@@ -85,10 +73,13 @@ for m in range(len(model_names)):
 
 fig = plt.figure()
 ax = fig.add_subplot()
-ax.set_yscale('log')
+#ax.set_yscale('log')
 for i in range(len(all_losses)):
-    ax.plot(all_losses[i], label=model_names[i])
+    if implicit[i]:
+        ax.plot(all_losses[i], label="{} ({} samples)".format(model_names[i], samples[i]))
+    else:
+        ax.plot(all_losses[i], label="{}".format(model_names[i]))
 ax.set_xlabel('Epoch')
-ax.set_ylabel('MSE Loss')
+ax.set_ylabel('Loss (Entropy)')
 ax.legend()
 plt.show()
