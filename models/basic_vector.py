@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
-import models.utils.loss_functions as lf
 
 class BasicVector(nn.Module):
-    def __init__(self, loss_function = lf.heatmap_target_mse):
+    def __init__(self, loss_function):
         super(BasicVector, self).__init__()
 
         self.loss = loss_function

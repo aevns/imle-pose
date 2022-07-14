@@ -1,9 +1,8 @@
 import torch.nn as nn
 from .layers.resnet import ResNet
-import models.utils.loss_functions as lf
 
 class SimplePose(nn.Module):
-    def __init__(self, loss_function = lf.heatmap_target_mse, norm_layer=nn.BatchNorm2d):
+    def __init__(self, loss_function, norm_layer=nn.BatchNorm2d):
         super(SimplePose, self).__init__()
         
         self.loss = loss_function

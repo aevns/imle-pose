@@ -1,10 +1,9 @@
 import torch
 import torch.nn as nn
-import models.utils.loss_functions as lf
 from models.utils.perlin_noise import perlin_ms
 
 class BasicSpatial(nn.Module):
-    def __init__(self, loss_function = lf.heatmap_target_mse):
+    def __init__(self, loss_function):
         super(BasicSpatial, self).__init__()
 
         self.loss = loss_function

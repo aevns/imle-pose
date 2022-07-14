@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import h5py
 import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
 
 import torchvision
 import torchvision.transforms as transforms
@@ -15,7 +16,7 @@ from torch import dtype, uint8
 from tqdm import tqdm
 from collections import defaultdict
 
-import models.utils.loss_functions as lf
+import loss_functions as lf
 
 from dataset import HDF5Dataset
 from models.simple18 import SimplePose
@@ -26,6 +27,7 @@ from models.basic_spatial import BasicSpatial
 from models.unet import UNet
 from models.unet_vector import UNetVector
 from models.dcignet import DCIGNet
+from models.vectornet import VectorNet
 
 val_data = HDF5Dataset("./data/stick/val.hdf5", 0.5)
 
@@ -38,17 +40,18 @@ val_loader = torch.utils.data.DataLoader(
     drop_last=True
 )
 
-network = UNetVector(loss_function = lf.heatmap_gaussian_fit_entropy).cuda()
+network = UNetVector(loss_function = lf.gaussian_entropy).cuda()
 
-state_dict = torch.load("./output/unet_vector_gaussian_swaps/state_dict/network_79.pth")
+state_dict = torch.load("./output/unet_vector_gaussian_swaps/state_dict/network_38.pth")
 network.load_state_dict(state_dict)
 network.training = False
 
 val_iter = iter(val_loader)
-for i in range(1):
+for i in range(101):
     batch = next(val_iter)
-pred, z = network.sample(batch)
-
+predictions = network.sample(batch, 1)
+pred = predictions['pose']
+heatmap = predictions['heatmap']
 # plotting utility functions
 
 r"""Plots skeleton pose on a matplotlib axis.
@@ -109,30 +112,41 @@ def heatmap2image(heatmap):
     img_max, indices = torch.max(img_max,dim=-2,keepdim=True)
     return img/img_max
 
-fig=plt.figure(figsize=(20, 5), dpi= 80, facecolor='w', edgecolor='k')
+def plot_pose_confidence(full_pose, ax=plt):
+    for joint in full_pose:
+        cov_idx = torch.tensor([[2,4],[4,3]])
+        cov_mat = joint[cov_idx]
+        lambda_, v = np.linalg.eig(cov_mat)
+        lambda_ = np.sqrt(lambda_)
+        ellipse = Ellipse(xy=(joint[0], joint[1]),
+                  width=lambda_[0]*2, height=lambda_[1]*2,
+                  angle=np.rad2deg(np.arctan2(*v[:,0][::-1])),
+                  color='white')
+        ellipse.set_facecolor('none')
+        ax.add_artist(ellipse)
+    return None
+
+fig=plt.figure(figsize=(16, 9), dpi= 80, facecolor='w', edgecolor='k')
 axes=fig.subplots(1,2)
 
 image_cpu = batch['image'].cpu().detach()
 pose_cpu = batch['pose'].cpu().detach()
+
 pred_cpu = pred.cpu().detach()
-
-#pred_pose = torch.flatten(pred_cpu, start_dim=2)
-#pred_pose = torch.argmax(pred_pose, dim=2)
-#pred_pose = torch.stack([pred_pose % pred_cpu.shape[3], pred_pose // pred_cpu.shape[3]], -1)
-#pred_heatmaps = pred_cpu
-
-pred_pose = lf.heatmap_gaussian_fit(pred_cpu)[:,:,0:2]
-pred_heatmaps = lf.heatmaps_normalized(pred_cpu)
+heatmap_cpu = heatmap.cpu().detach()
 
 # plot the ground truth and the predicted pose on top of the image
-plotPosesOnImage([pred_pose[0].detach(), pose_cpu[0]], val_data.denormalize(image_cpu[0]), ax=axes[0], labels=['prediction', 'ground truth label'])
+plotPosesOnImage([pred_cpu[0,:,0:2].detach(), pose_cpu[0]], val_data.denormalize(image_cpu[0]), ax=axes[0], labels=['prediction', 'ground truth label'])
 axes[0].set_title('Input image with predicted pose (solid) and GT pose (dashed)')
 axes[0].legend()
 
 # plot the predicted probability map and the predicted pose on top
-plotPosesOnImage([pred_pose[0].detach()], heatmap2image(pred_heatmaps[0]).detach(), ax=axes[1], labels=['prediction'])
+plotPosesOnImage([pred_cpu[0,:,0:2].detach()], heatmap2image(heatmap_cpu[0]).detach(), ax=axes[1], labels=['prediction'])
 axes[1].set_title('Predicted probability map with predicted pose overlayed')
 axes[1].legend()
+
+plot_pose_confidence(pred_cpu[0].detach(), axes[0])
+plot_pose_confidence(pred_cpu[0].detach(), axes[1])
 
 plt.show()
 image_modified = val_data.denormalize(image_cpu[0])

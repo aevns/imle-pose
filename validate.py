@@ -5,7 +5,7 @@ import re
 
 import matplotlib.pyplot as plt
 
-import models.utils.loss_functions as lf
+import loss_functions as lf
 
 from dataset import HDF5Dataset
 from models.unet import UNet

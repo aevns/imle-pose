@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 
-class UNet(nn.Module):
-    name = "unet"
-    implicit = False
+class UNetVAE(nn.Module):
+    name = "unet_vector"
+    implicit = True
     def __init__(self, loss_function):
-        super(UNet, self).__init__()
+        super(UNetVAE, self).__init__()
 
         self.loss = loss_function
 
@@ -20,8 +20,8 @@ class UNet(nn.Module):
         self.bn3 = nn.BatchNorm2d(128)
         self.conv4 = nn.Conv2d(128, 128, kernel_size=3, stride=2, padding=1, bias=False)
         self.bn4 = nn.BatchNorm2d(128)
-        self.vectorize = nn.Linear(128 * 4 * 3, 128)
-        self.devectorize =  nn.Linear(128, 128 * 4 * 3)
+        self.vectorize = nn.Linear(128 * 4 * 3, 64 * 2)
+        self.devectorize =  nn.Linear(64 * 2, 128 * 4 * 3)
         self.deconv5 = nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False)
         self.bn5 = nn.BatchNorm2d(64)
         # concat(b5,b3)
@@ -53,7 +53,7 @@ class UNet(nn.Module):
             #    nn.init.constant_(m.weight, 1)
             #    nn.init.constant_(m.bias, 0)
 
-    def forward(self, x):
+    def forward(self, x, z):
         block1 = self.relu(self.bn1(self.conv1(x['image'])))
 
         block2 = self.relu(self.bn2(self.conv2(block1)))
@@ -63,6 +63,9 @@ class UNet(nn.Module):
         out = self.relu(self.bn4(self.conv4(block3)))
 
         out = self.relu(self.vectorize(out.view(-1, 128 * 4 * 3)))
+
+        out = torch.cat((out, z), dim=-1)
+
         out = self.relu(self.devectorize(out)).view(-1, 128, 4, 3)
 
         out = self.relu(self.bn5(self.deconv5(out)))
@@ -82,4 +85,20 @@ class UNet(nn.Module):
         return self.conv12(out)
     
     def sample(self, x):
-        return self.forward(x), None
+        z = torch.randn((x['image'].shape[0], 8), device="cuda:0")
+        return self.forward(x, z), z
+    
+    def train_sample(self, x, n):
+        for s in range(n):
+            z = torch.randn((x['image'].shape[0], 8), device="cuda:0")
+            pred = self.forward(x, z)
+            if s == 0:
+                noise = z
+                losses = self.loss(pred, x)
+            else:
+                l = self.loss(pred, x)
+                mask = l < losses
+                losses[mask] = l[mask]
+                noise[mask] = z[mask]
+
+        return self.forward(x, noise), noise

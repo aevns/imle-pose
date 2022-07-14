@@ -1,32 +1,33 @@
 import torch
 import torch.nn as nn
 import os
+import time
 
-#from tqdm import tqdm
-
-import models.utils.loss_functions as lf
+import loss_functions as lf
 
 from dataset import HDF5Dataset
 from models.unet import UNet
 from models.unet_vector import UNetVector
+from models.vectornet import VectorNet
 
 #########################################################################
+torch.autograd.set_detect_anomaly(True)
 
-start_epoch = 40
-num_epochs = 80
+start_epoch = 0
+num_epochs = 160
 
 data_file = "./data/stick/train.hdf5"
 swap_rate = 0.5
 
-model_name = "unet_gaussian_swaps"
-model = UNet
-implicit = False
-samples = 6
-loss_function = lf.heatmap_gaussian_fit_entropy
+model_name = "unet_vector_gaussian_swaps_mixed_samples"
+model = UNetVector
+samples = 10
+loss_function = lf.gaussian_entropy
 
 #########################################################################
 
 os.makedirs(os.path.dirname("output/{}/state_dict/".format(model_name)), exist_ok=True)
+os.makedirs(os.path.dirname("output/{}/training_log/".format(model_name)), exist_ok=True)
 
 train_data = HDF5Dataset(data_file, swap_rate, (64, 48))
 
@@ -45,6 +46,9 @@ if start_epoch > 0:
     network.load_state_dict(state_dict)
 network.training = True
 
+
+logfile = open("output/{}/training_log/log.csv".format(model_name), "w+")
+
 losses = []
 optimizer = torch.optim.Adam(network.parameters(), lr = 0.001)
 for e in range(start_epoch, num_epochs):
@@ -52,12 +56,12 @@ for e in range(start_epoch, num_epochs):
     for i in range(len(train_loader)):
         batch = next(train_iter)
 
-        if implicit:
-            pred, _ = network.train_sample(batch, samples)
-        else:
-            pred = network(batch)
-
-        loss = torch.mean(network.loss(pred, batch))
+        #if model.implicit:
+        #    pred, _ = network.sample(batch, samples)
+        #else:
+        #    pred = network(batch)
+        loss = torch.mean(network.loss_mixed(batch, samples))
+        #loss = torch.mean(network.loss(pred, batch))
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -65,4 +69,6 @@ for e in range(start_epoch, num_epochs):
 
         if i%(len(train_loader)//10)==0:
             print("Epoch {}, iteration {} of {} ({} %), loss={}".format(e, i, len(train_loader), 100*i//len(train_loader), losses[-1]))
+            logfile.write("Epoch:,{},iteration:,{},of,{},loss:,{}\n".format(e, i, len(train_loader), losses[-1]))
     torch.save(network.state_dict(), "output/{}/state_dict/network_{}.pth".format(model_name, e))
+logfile.close()
