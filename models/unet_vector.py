@@ -1,3 +1,4 @@
+from cmath import log
 import torch
 import torch.nn as nn
 
@@ -10,7 +11,7 @@ class UNetVector(nn.Module):
         self.loss = loss_function
 
         self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.dropout = nn.Dropout()
 
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=2, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(32)
@@ -78,10 +79,9 @@ class UNetVector(nn.Module):
         out = self.relu(self.bn11(self.deconv11(out)))
 
         out = self.conv12(out)
-        out = UNetVector.heatmaps_normalized(out)
-        return {'pose': UNetVector.heatmap_gaussian_fit(out), 'heatmap': out}
+        return {'pose': UNetVector.heatmap_gaussian_fit(UNetVector.heatmaps_normalized(out)), 'heatmap': out}
 
-    def sample(self, x, n):
+    def sample(self, x, n = 1):
         for s in range(n):
             z = torch.randn((x['image'].shape[0], 8), device="cuda:0")
             pred = self.forward(x, z)
@@ -96,13 +96,28 @@ class UNetVector(nn.Module):
 
         return self.forward(x, noise)
 
-    def loss_mixed(self, x, n):
-        loss = 0
+    def mixed_loss(self, x, n):
+        losses = torch.zeros((n, x['image'].shape[0]), device=x['image'].device)
         for s in range(n):
             z = torch.randn((x['image'].shape[0], 8), device="cuda:0")
             pred = self.forward(x, z)
-            loss += torch.exp(self.loss(pred, x))/n
-        return torch.log(loss)
+            losses[s] = self.loss(pred, x)
+        temp, _ = torch.min(losses, dim=0)
+        
+        # log(n) term is important but the function needs to be changed to one that does not return complex values
+        return temp - torch.log(torch.sum(torch.exp(temp - losses), dim=0)) # + log(n)
+
+    def soft_loss(self, x, n):
+        losses = torch.zeros((n, x['image'].shape[0]), device=x['image'].device)
+        for i in range(n):
+            z = torch.randn((x['image'].shape[0], 8), device="cuda:0")
+            pred = self.forward(x, z)
+            losses[i] = self.loss(pred, x)
+        temp, _ = torch.min(losses, dim=0)
+        s1 = torch.sum(torch.exp(temp - losses), dim=0)
+        s2 = torch.sum(torch.exp(2*temp - 2*losses), dim=0)
+
+        return temp - torch.log(s2/s1) # + log(n)
 
     def sample_mixed_fast(self, x, n):
         xn = x.repeat(n,1,1,1)
@@ -111,7 +126,7 @@ class UNetVector(nn.Module):
         losses = self.loss(pred)
         loss = 0
         for i in range(n):
-            loss += torch.log(torch.sum(torch.exp(losses[i::n])/n))
+            loss -= torch.log(torch.sum(torch.exp(-losses[i::n])/n))
         return loss
 
     def heatmaps_normalized(pred):
@@ -135,8 +150,8 @@ class UNetVector(nn.Module):
         xn = (x_vals - x_means.view(n, c, 1, 1))
         yn = (y_vals - y_means.view(n, c, 1, 1))
 
-        x_var = torch.sum(pred * (1/12 + xn * xn), dim=(2,3))
-        y_var = torch.sum(pred * (1/12 + yn * yn), dim=(2,3))
+        x_var = 1/12 + torch.sum(pred * xn * xn, dim=(2,3))
+        y_var = 1/12 + torch.sum(pred * yn * yn, dim=(2,3))
         xy_covar = torch.sum(pred * xn * yn, dim=(2,3))
 
         return torch.stack((x_means, y_means, x_var, y_var, xy_covar), -1)

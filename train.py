@@ -14,15 +14,15 @@ from models.vectornet import VectorNet
 torch.autograd.set_detect_anomaly(True)
 
 start_epoch = 0
-num_epochs = 160
+num_epochs = 100
 
 data_file = "./data/stick/train.hdf5"
 swap_rate = 0.5
 
-model_name = "unet_vector_gaussian_swaps_mixed_samples"
+model_name = "unet_vector_heatmap_swaps"
 model = UNetVector
 samples = 10
-loss_function = lf.gaussian_entropy
+loss_function = lf.heatmap_target_mse
 
 #########################################################################
 
@@ -56,12 +56,12 @@ for e in range(start_epoch, num_epochs):
     for i in range(len(train_loader)):
         batch = next(train_iter)
 
-        #if model.implicit:
-        #    pred, _ = network.sample(batch, samples)
-        #else:
-        #    pred = network(batch)
-        loss = torch.mean(network.loss_mixed(batch, samples))
-        #loss = torch.mean(network.loss(pred, batch))
+        if model.implicit:
+            pred = network.sample(batch, samples)
+        else:
+            pred = network(batch)
+        
+        loss = torch.mean(network.loss(pred, batch))
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()

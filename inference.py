@@ -40,14 +40,14 @@ val_loader = torch.utils.data.DataLoader(
     drop_last=True
 )
 
-network = UNetVector(loss_function = lf.gaussian_entropy).cuda()
+network = UNetVector(loss_function = lf.gaussian_nll).cuda()
 
-state_dict = torch.load("./output/unet_vector_gaussian_swaps/state_dict/network_38.pth")
+state_dict = torch.load("./output/unet_vector_gaussian_swaps/state_dict/network_94.pth")
 network.load_state_dict(state_dict)
 network.training = False
 
 val_iter = iter(val_loader)
-for i in range(101):
+for i in range(1): # 87, 101
     batch = next(val_iter)
 predictions = network.sample(batch, 1)
 pred = predictions['pose']

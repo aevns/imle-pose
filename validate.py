@@ -16,11 +16,11 @@ from models.unet_vector import UNetVector
 data_file = "./data/stick/val.hdf5"
 
 models = [UNetVector, UNetVector, UNetVector, UNetVector, UNetVector]
-model_names = ["unet_vector_gaussian_swaps", "unet_vector_gaussian_swaps", "unet_vector_gaussian_swaps", "unet_vector_gaussian_swaps", "unet_vector_gaussian_swaps"]
-implicit = [True, True, True, True, True]
-samples = [1, 3, 5, 10, 20]
-swap_rates = [0.5, 0.5, 0.5, 0.5, 0.5]
-loss_function = lf.heatmap_gaussian_fit_entropy
+model_names = ["unet_vector_gaussian_swaps", "unet_vector_gaussian_swaps_soft"]
+implicit = [True, True]
+samples = [20, 20]
+swap_rates = [0.5, 0.5]
+loss_function = lf.gaussian_nll
 
 #########################################################################
 
@@ -28,7 +28,7 @@ all_losses = []
 for m in range(len(model_names)):
     val_data = HDF5Dataset(data_file, swap_rates[m])
 
-    network = models[m](loss_function = lf.heatmap_gaussian_fit_entropy).cuda()
+    network = models[m](loss_function = loss_function).cuda()
     network.training = False
     losses = []
 
@@ -59,7 +59,7 @@ for m in range(len(model_names)):
             batch = next(val_iter)
             
             if implicit[m]:
-                pred, _ = network.train_sample(batch, samples[m])
+                pred = network.sample(batch, samples[m])
             else:
                 pred = network(batch)
 

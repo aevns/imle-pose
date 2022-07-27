@@ -49,9 +49,6 @@ class UNet(nn.Module):
                 nn.init.normal_(m.weight, std=0.001)
             elif isinstance(m, nn.Linear):
                 nn.init.normal_(m.weight, std=0.001)
-            #elif isinstance(m, nn.BatchNorm2d):
-            #    nn.init.constant_(m.weight, 1)
-            #    nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
         block1 = self.relu(self.bn1(self.conv1(x['image'])))
@@ -79,7 +76,35 @@ class UNet(nn.Module):
         out = self.relu(self.bn10(self.conv10(out)))
         out = self.relu(self.bn11(self.deconv11(out)))
 
-        return self.conv12(out)
+        out = self.conv12(out)
+        return {'pose': UNet.heatmap_gaussian_fit(UNet.heatmaps_normalized(out)), 'heatmap': out}
     
-    def sample(self, x):
-        return self.forward(x), None
+    def sample(self, x, n = 1):
+        return self.forward(x)
+
+    def heatmaps_normalized(pred):
+        n, c, h, w = pred.shape
+
+        max_ = torch.max(torch.max(pred, dim=-1)[0], dim=-1, keepdim=True)[0].unsqueeze(-1)
+        z = torch.sum(torch.exp(pred - max_), (2, 3)).view(n, c, 1, 1)
+        h_norm = torch.exp(pred - max_) / z
+
+        return h_norm
+    
+    def heatmap_gaussian_fit(pred):
+        n, c, h, w = pred.shape
+
+        x_vals = torch.linspace(0, w-1, w, device=pred.device).unsqueeze(0)
+        y_vals = torch.linspace(0, h-1, h, device=pred.device).unsqueeze(1)
+
+        x_means = torch.sum(pred * x_vals, dim = (2, 3))
+        y_means = torch.sum(pred * y_vals, dim = (2, 3))
+        
+        xn = (x_vals - x_means.view(n, c, 1, 1))
+        yn = (y_vals - y_means.view(n, c, 1, 1))
+
+        x_var = 1/12 + torch.sum(pred * xn * xn, dim=(2,3))
+        y_var = 1/12 + torch.sum(pred * yn * yn, dim=(2,3))
+        xy_covar = torch.sum(pred * xn * yn, dim=(2,3))
+
+        return torch.stack((x_means, y_means, x_var, y_var, xy_covar), -1)
