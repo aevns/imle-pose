@@ -17,20 +17,19 @@ from torch import dtype, uint8
 from tqdm import tqdm
 from collections import defaultdict
 
-import loss_functions as lf
+import models.utils.loss_functions as lf
 
 from dataset import HDF5Dataset
 from models.unet import UNet
-from models.unet_vector import UNetVector
 
 model = UNet
-model_name = "unet_gaussian_swaps"
-epoch = 41
+model_name = "model_2"
+epoch = 50
 samples=100
-image_scale = 8
+image_scale = 16
 plot_variables = torch.tensor([[11,0],[14,0]])
 
-val_data = HDF5Dataset("./data/stick/val.hdf5", 0)
+val_data = HDF5Dataset("data/stick/val.hdf5", 0, False)
 
 val_loader = torch.utils.data.DataLoader(
     val_data,
@@ -41,14 +40,14 @@ val_loader = torch.utils.data.DataLoader(
     drop_last=True
 )
 
-network = model(loss_function = lf.gaussian_nll).cuda()
+network = model(lf.gaussian_nll, val_data.image_size, 8).cuda()
 
 state_dict = torch.load("./output/{}/state_dict/network_{}.pth".format(model_name, epoch))
 network.load_state_dict(state_dict)
 network.training = False
 
 val_iter = iter(val_loader)
-for i in range(1): # 87, 101
+for i in range(40): # 87, 101
     batch = next(val_iter)
 
 #image_cpu = batch['image'][0].cpu().detach()
@@ -57,7 +56,7 @@ pose_cpu = batch['pose'][0].cpu().detach()
 img = torch.zeros((3,64*image_scale,64*image_scale))
 
 for i in range(samples):
-    predictions = network.sample(batch)
+    predictions = network.get_sample(batch)
     pred = predictions['pose'][0]
     pred_cpu = pred.cpu().detach()
     heatmap = predictions['heatmap'][0]

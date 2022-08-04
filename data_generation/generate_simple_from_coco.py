@@ -1,20 +1,19 @@
+import sys
+sys.path.append("..")
+
 import json
 import numpy as np
 import copy
-import random
 
 import torchvision.transforms as transforms
 import cv2
-
-from torch import dtype, uint8
-import models.utils.transforms as ut
 
 root = 'data/coco/'
 collection = 'train'
 collection_json = 'annotations/person_keypoints_' + collection + '2017.json'
 
-height = 128#64
-width = 96#48
+height = 128
+width = 96
 margin = 12
 output_size = np.array([width, height])
 

@@ -6,8 +6,8 @@ import h5py
 Device = "cuda:0"
 
 class HDF5Dataset(torch.utils.data.Dataset):
-    def __init__(self, data_file = "./data/stick/train.hdf5", swap_rate = 0, target_heatmap_size = None, target_heatmap_sigma = 2):
-        super(HDF5Dataset).__init__();
+    def __init__(self, data_file = "./data/stick/train.hdf5", swap_rate = 0, generate_heatmaps = False, target_heatmap_sigma = 2):
+        super(HDF5Dataset).__init__()
 
         with h5py.File(data_file, 'r') as df:
             self.poses = torch.from_numpy(df['poses'][...]).to(Device)
@@ -17,29 +17,30 @@ class HDF5Dataset(torch.utils.data.Dataset):
             self.keypoints = df['keypoints'][...]
             self.skeleton = df['skeleton'][...]
 
-        self.normalize = transforms.Normalize(self.mean, self.std)
-        self.denormalize = transforms.Compose([
-            transforms.Normalize(mean = [ 0., 0., 0. ], std = 1/self.std),
-            transforms.Normalize(mean = -self.mean, std = [ 1., 1., 1. ])]
-            )
-        
+        self.image_size = torch.tensor(self.images[0].shape[1:], device=Device)
+
         if swap_rate > 0:
             swaps = torch.rand(self.poses.shape[0], device=Device) < swap_rate
             swapped_indices = torch.tensor([0,1,2,3,4,5,6,7,8,9,10,12,11,14,13,16,15], dtype=torch.long, device=Device)
             self.poses[swaps] = self.poses[swaps][:,swapped_indices]
 
-        if target_heatmap_size is None:
-            self.get_target = lambda idx: torch.empty(0)
-        else:
-            self._heatmap_size = target_heatmap_size
-            self._sigma = 2
-            self._feat_stride = np.array(self.images[0,0].shape) / np.array(self._heatmap_size)
+        self.normalize = transforms.Normalize(self.mean, self.std)
+        self.denormalize = transforms.Compose([
+            transforms.Normalize(mean = [ 0., 0., 0. ], std = 1/self.std),
+            transforms.Normalize(mean = -self.mean, std = [ 1., 1., 1. ])]
+            )
 
-            self.get_target = lambda idx: self._target_generator(self.poses[idx])[0]
+        self.generate_heatmaps = generate_heatmaps
+        self._heatmap_size = self.image_size.cpu().detach().numpy()
+        self._sigma = target_heatmap_sigma
+        self._feat_stride = np.array(self.images[0,0].shape) / np.array(self._heatmap_size)
     
     # converted from SimplePose target generator
     # joints_3d -> joints_2d (joints_3d was (x,y,s), where s is a label mask)
     def _target_generator(self, joints_2d):
+        if ~self.generate_heatmaps:
+            return 0
+
         num_joints = len(self.keypoints)
         target_weight = np.ones((num_joints, 1), dtype=np.float32)
         target = np.zeros((num_joints, self._heatmap_size[0], self._heatmap_size[1]),
@@ -76,7 +77,7 @@ class HDF5Dataset(torch.utils.data.Dataset):
             if v > 0.5:
                 target[i, img_y[0]:img_y[1], img_x[0]:img_x[1]] = g[g_y[0]:g_y[1], g_x[0]:g_x[1]]
 
-        return torch.tensor(target, device="cuda:0"), np.expand_dims(target_weight, -1)
+        return torch.tensor(target, device=Device), np.expand_dims(target_weight, -1)
     
     def __len__(self):
         return self.poses.shape[0]
@@ -84,7 +85,7 @@ class HDF5Dataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         sample = {'image': self.normalize(self.images[idx].float()),
                   'pose': self.poses[idx],
-                  'target': self.get_target(idx)}
+                  'target': self._target_generator(idx)}
         return sample
     
     @property

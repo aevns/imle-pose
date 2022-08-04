@@ -17,7 +17,7 @@ from torch import dtype, uint8
 from tqdm import tqdm
 from collections import defaultdict
 
-import loss_functions as lf
+import models.utils.loss_functions as lf
 
 from dataset import HDF5Dataset
 from models.unet import UNet

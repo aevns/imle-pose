@@ -16,20 +16,12 @@ from torch import dtype, uint8
 from tqdm import tqdm
 from collections import defaultdict
 
-import loss_functions as lf
+import models.utils.loss_functions as lf
 
 from dataset import HDF5Dataset
-from models.simple18 import SimplePose
-from models.basic import Basic
-from models.basic_vector import BasicVector
-from models.basic_progressive import BasicProgressive
-from models.basic_spatial import BasicSpatial
 from models.unet import UNet
-from models.unet_vector import UNetVector
-from models.dcignet import DCIGNet
-from models.vectornet import VectorNet
 
-val_data = HDF5Dataset("./data/stick/val.hdf5", 0.5)
+val_data = HDF5Dataset("data/stick/val.hdf5", 0.5, False)
 
 val_loader = torch.utils.data.DataLoader(
     val_data,
@@ -40,18 +32,18 @@ val_loader = torch.utils.data.DataLoader(
     drop_last=True
 )
 
-network = UNetVector(loss_function = lf.gaussian_nll).cuda()
+network = UNet(lf.gaussian_nll, val_data.image_size, 8).cuda()
 
-state_dict = torch.load("./output/unet_vector_gaussian_swaps/state_dict/network_94.pth")
+state_dict = torch.load("output/model_2/state_dict/network_50.pth")
 network.load_state_dict(state_dict)
 network.training = False
 
 val_iter = iter(val_loader)
-for i in range(1): # 87, 101
+for i in range(101): # 87, 101
     batch = next(val_iter)
-predictions = network.sample(batch, 1)
-pred = predictions['pose']
-heatmap = predictions['heatmap']
+prediction = network.get_sample(batch)
+pred = prediction['pose']
+heatmap = prediction['heatmap']
 # plotting utility functions
 
 r"""Plots skeleton pose on a matplotlib axis.
@@ -133,7 +125,7 @@ image_cpu = batch['image'].cpu().detach()
 pose_cpu = batch['pose'].cpu().detach()
 
 pred_cpu = pred.cpu().detach()
-heatmap_cpu = heatmap.cpu().detach()
+heatmap_cpu = UNet.normalize(heatmap).cpu().detach()
 
 # plot the ground truth and the predicted pose on top of the image
 plotPosesOnImage([pred_cpu[0,:,0:2].detach(), pose_cpu[0]], val_data.denormalize(image_cpu[0]), ax=axes[0], labels=['prediction', 'ground truth label'])
