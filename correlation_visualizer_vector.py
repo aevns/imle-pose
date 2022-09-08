@@ -23,8 +23,8 @@ from dataset import HDF5Dataset
 from models.unet import UNet
 
 model = UNet
-model_name = "model_2"
-epoch = 50
+model_name = "simple_8gs20"
+epoch = 23
 samples=100
 image_scale = 16
 plot_variables = torch.tensor([[11,0],[14,0]])

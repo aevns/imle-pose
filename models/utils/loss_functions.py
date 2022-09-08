@@ -23,5 +23,5 @@ def heatmap_target_mse(pred, x):
     return 0.5 * torch.mean(nn.MSELoss(reduction='none')(pred['heatmap'], x['target']), dim=(-3,-2,-1))
 
 def heatmap_target_dkl(pred, x):
-    target = x['target'] / torch.sum(x['target'], dim=(-3,-2,-1))
+    target = x['target'] / torch.sum(x['target'], dim=(-3,-2,-1)).view(-1,1,1,1)
     return torch.sum(target * torch.log(pred['heatmap'] / target), dim=(-3,-2,-1))

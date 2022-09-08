@@ -21,7 +21,7 @@ import models.utils.loss_functions as lf
 from dataset import HDF5Dataset
 from models.unet import UNet
 
-val_data = HDF5Dataset("data/stick/val.hdf5", 0.5, False)
+val_data = HDF5Dataset("data/simple/val.hdf5", 0.5, False)
 
 val_loader = torch.utils.data.DataLoader(
     val_data,
@@ -34,12 +34,12 @@ val_loader = torch.utils.data.DataLoader(
 
 network = UNet(lf.gaussian_nll, val_data.image_size, 8).cuda()
 
-state_dict = torch.load("output/model_2/state_dict/network_50.pth")
+state_dict = torch.load("output/simple_8gs20/state_dict/network_24.pth")
 network.load_state_dict(state_dict)
 network.training = False
 
 val_iter = iter(val_loader)
-for i in range(101): # 87, 101
+for i in range(4): # 87, 101
     batch = next(val_iter)
 prediction = network.get_sample(batch)
 pred = prediction['pose']

@@ -5,7 +5,7 @@ from torch.profiler import profile, record_function, ProfilerActivity
 
 import models.utils.loss_functions as lf
 from dataset import HDF5Dataset
-from models.unet import UNet
+from models.unet_pretrained import UNet
 
 # TODO: Use a config. for this instead of simply altering the training script, OR
 # split this into two scripts (train, and one that operates like a config)
@@ -22,11 +22,11 @@ swap_rate = 0.5
 network = UNet
 noise_length = 8
 samples = 20
-loss_function = lf.gaussian_nll
-generate_heatmaps = False
+loss_function = lf.heatmap_target_mse
+generate_heatmaps = True
 sample_method = "select"
 
-output_folder = "simple_8gs20"
+output_folder = "pretrained_test"
 model_description = network.name + "_" + str(noise_length) + "_" + sample_method + "_" + str(samples) + "_" + loss_function.__name__
 #########################################################################
 

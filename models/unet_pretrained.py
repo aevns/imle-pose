@@ -1,7 +1,29 @@
+import copy
 from math import log
 from math import floor
 import torch
 import torch.nn as nn
+
+class UNetPreprocess(nn.Module):
+    def __init__(self, out_channels):
+        super(UNetPreprocess, self).__init__()
+        resnet = torch.hub.load('pytorch/vision:v0.10.0', 'resnet50', pretrained=True)
+
+        self.relu = copy.deepcopy(resnet.relu)
+        self.maxpool = copy.deepcopy(resnet.maxpool)
+        
+        self.conv1 = copy.deepcopy(resnet.conv1)
+        self.bn1 = copy.deepcopy(resnet.bn1)
+        self.layer1 = copy.deepcopy(resnet.layer1)
+        self.deconv2 = nn.ConvTranspose2d(256, out_channels, kernel_size=5, stride=4, padding=1, output_padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+
+    def forward(self, x):
+        out = self.relu(self.bn1(self.conv1(x)))
+        out = self.maxpool(out)
+        out = self.layer1(out)
+        out = self.relu(self.bn2(self.deconv2(out)))
+        return out
 
 class UNetCenter(nn.Module):
     def __init__(self, input_shape, noise_length):
@@ -64,7 +86,7 @@ class UNet(nn.Module):
 
     def __init__(self, loss_function, input_size, noise_length = 8, n_stages = None):
         super(UNet, self).__init__()
-
+        self.preprocess = UNetPreprocess(UNet.min_channels)
         self.loss = loss_function
         self.input_size = input_size
         self.noise_length = noise_length
@@ -84,7 +106,6 @@ class UNet(nn.Module):
             channels = floor(UNet.max_channels**(1 - i/self.n_stages)*UNet.min_channels**(i/self.n_stages))
             self.net = UNetStage(self.net, channels, channels)
         
-        self.initial = nn.Conv2d(3, UNet.min_channels, kernel_size=1, stride=1, padding=0)
         self.final = nn.Conv2d(UNet.min_channels, 17, kernel_size=1, stride=1, padding=0)
 
     def _initialize(self):
@@ -93,7 +114,7 @@ class UNet(nn.Module):
                 nn.init.normal_(m.weight, std=0.001)
 
     def forward(self, x, z):
-        out = self.initial(x['image'])
+        out = self.preprocess(x['image'])
         out = self.net(out, z)
         out = self.final(out)
         return {'pose': UNet.gaussian_fit(UNet.normalize(out)), 'heatmap': out}

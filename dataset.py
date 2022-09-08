@@ -38,7 +38,7 @@ class HDF5Dataset(torch.utils.data.Dataset):
     # converted from SimplePose target generator
     # joints_3d -> joints_2d (joints_3d was (x,y,s), where s is a label mask)
     def _target_generator(self, joints_2d):
-        if ~self.generate_heatmaps:
+        if not self.generate_heatmaps:
             return 0
 
         num_joints = len(self.keypoints)
@@ -85,7 +85,7 @@ class HDF5Dataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         sample = {'image': self.normalize(self.images[idx].float()),
                   'pose': self.poses[idx],
-                  'target': self._target_generator(idx)}
+                  'target': self._target_generator(self.poses[idx])[0]}
         return sample
     
     @property
