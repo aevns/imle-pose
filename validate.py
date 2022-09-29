@@ -16,10 +16,11 @@ data_file = "data/stick/val.hdf5"
 batch_size = 32
 
 models = [UNet]
-folder_names = ["model_2"]
+folder_names = ["stick_7"]
 noise_lengths = [8]
 samples = [20]
-swap_rates = [0.5]
+leg_swaps = [0.1]
+arm_swaps = [0.1]
 loss_function = lf.gaussian_nll
 target_heatmaps = [False]
 sample_methods = ["mixed"]
@@ -28,7 +29,7 @@ sample_methods = ["mixed"]
 
 all_losses = []
 for m in range(len(folder_names)):
-    val_data = HDF5Dataset(data_file, swap_rates[m], target_heatmaps[m])
+    val_data = HDF5Dataset(data_file, leg_swaps[m], arm_swaps[m], target_heatmaps[m])
 
     network = models[m](loss_function, val_data.image_size, noise_lengths[m]).cuda()
     network.training = False
