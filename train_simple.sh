@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=8G
 #SBATCH --time=4:00:00
-#SBATCH --array=0-11
+#SBATCH --array=0-5
 
 ### create virtual environment on every node
 module load python/3.9.6
