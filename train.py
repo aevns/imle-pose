@@ -8,7 +8,7 @@ from torch.profiler import profile, record_function, ProfilerActivity
 
 import models.utils.loss_functions as lf
 from dataset import HDF5Dataset
-from models.unet_pretrained import UNet
+from models.unet import UNet
 
 # TODO: Use a config. for this instead of simply altering the training script, OR
 # split this into two scripts (train, and one that operates like a config)

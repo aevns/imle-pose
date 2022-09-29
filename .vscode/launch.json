@@ -11,6 +11,15 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Python: Train",
+            "type": "python",
+            "request": "launch",
+            "program": "C:/Users/AE/Documents/GitHub/imle-pose/train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args":["-d","data/stick/","-m","UNet","-l","gaussian","-ls","0.5","-as","0.1","-o","s_g_p5p1"]
         }
     ]
 }
