@@ -19,7 +19,7 @@
             "program": "C:/Users/AE/Documents/GitHub/imle-pose/train.py",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args":["-d","data/stick/","-m","UNet","-l","dkl","-ls","0.5","-as","0.1","-o","s_g_p5p1"]
+            "args":["-d","data/simple/","-m","UNetPretrained","-l","dkl","-ls","0.5","-as","0.1","-o","s_g_p5p1"]
         }
     ]
 }

@@ -44,7 +44,7 @@ class HDF5Dataset(torch.utils.data.Dataset):
     # joints_3d -> joints_2d (joints_3d was (x,y,s), where s is a label mask)
     def _target_generator(self, joints_2d):
         if not self.generate_heatmaps:
-            return 0, 0
+            return 0
 
         num_joints = len(self.keypoints)
         target_weight = np.ones((num_joints, 1), dtype=np.float32)

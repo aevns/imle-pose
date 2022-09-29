@@ -78,15 +78,15 @@ class UNetStage(nn.Module):
         out = self.relu(self.bn3(self.conv3(out)))
         return out
 
-class UNet(nn.Module):
+class UNetPretrained(nn.Module):
     name = "unet"
     implicit = True
     min_channels = 32
     max_channels = 128
 
     def __init__(self, loss_function, input_size, noise_length = 8, n_stages = None):
-        super(UNet, self).__init__()
-        self.preprocess = UNetPreprocess(UNet.min_channels)
+        super(UNetPretrained, self).__init__()
+        self.preprocess = UNetPreprocess(UNetPretrained.min_channels)
         self.loss = loss_function
         self.input_size = input_size
         self.noise_length = noise_length
@@ -96,17 +96,17 @@ class UNet(nn.Module):
             self.n_stages = n_stages
 
         center_shape = torch.tensor([
-            UNet.max_channels,
+            UNetPretrained.max_channels,
             torch.div(self.input_size[0],(2**self.n_stages), rounding_mode='floor'),
             torch.div(self.input_size[1],(2**self.n_stages), rounding_mode='floor')
             ]).to(torch.int32)
         self.net = UNetCenter(center_shape, noise_length)
 
         for i in range(1, self.n_stages + 1):
-            channels = floor(UNet.max_channels**(1 - i/self.n_stages)*UNet.min_channels**(i/self.n_stages))
+            channels = floor(UNetPretrained.max_channels**(1 - i/self.n_stages)*UNetPretrained.min_channels**(i/self.n_stages))
             self.net = UNetStage(self.net, channels, channels)
         
-        self.final = nn.Conv2d(UNet.min_channels, 17, kernel_size=1, stride=1, padding=0)
+        self.final = nn.Conv2d(UNetPretrained.min_channels, 17, kernel_size=1, stride=1, padding=0)
 
     def _initialize(self):
         for name, m in self.named_modules():
@@ -117,7 +117,7 @@ class UNet(nn.Module):
         out = self.preprocess(x['image'])
         out = self.net(out, z)
         out = self.final(out)
-        return {'pose': UNet.gaussian_fit(UNet.normalize(out)), 'heatmap': out}
+        return {'pose': UNetPretrained.gaussian_fit(UNetPretrained.normalize(out)), 'heatmap': out}
     
     def get_sample(self, x):
         z = torch.randn((x['image'].shape[0], self.noise_length), device = x['image'].device)

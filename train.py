@@ -9,9 +9,8 @@ from torch.profiler import profile, record_function, ProfilerActivity
 import models.utils.loss_functions as lf
 from dataset import HDF5Dataset
 from models.unet import UNet
+from models.unet_pretrained import UNetPretrained
 
-# TODO: Use a config. for this instead of simply altering the training script, OR
-# split this into two scripts (train, and one that operates like a config)
 #########################################################################
 print(torch.cuda.get_arch_list())
 print([torch.cuda.device(i) for i in range(torch.cuda.device_count())])
@@ -40,8 +39,10 @@ data_file = args.dataroot + "train.hdf5"
 leg_swaps = args.legswaps
 arm_swaps = args.armswaps
 
-#TODO: use model input for different models
-network = UNet
+if args.model == 'UNet':
+    network = UNet
+elif args.model == 'UNetPretrained':
+    network = UNetPretrained
 noise_length = 8
 
 samples = args.samples
