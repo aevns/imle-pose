@@ -23,5 +23,6 @@ def heatmap_target_mse(pred, x):
     return 0.5 * torch.mean(nn.MSELoss(reduction='none')(pred['heatmap'], x['target']), dim=(-3,-2,-1))
 
 def heatmap_target_dkl(pred, x):
-    target = x['target'] / torch.sum(x['target'], dim=(-3,-2,-1)).view(-1,1,1,1)
-    return torch.sum(target * torch.log(pred['heatmap'] / target), dim=(-3,-2,-1))
+    eps = torch.tensor([1E-8], device=x['target'].device)
+    target = torch.max(x['target'] / torch.sum(x['target'], dim=(-3,-2,-1)).view(-1,1,1,1), eps)
+    return torch.sum(target * torch.log(torch.max(pred['heatmap'], eps) / target), dim=(-3,-2,-1))
