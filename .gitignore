@@ -27,6 +27,7 @@ output/
 .installed.cfg
 *.egg
 *.out
+*.pt
 MANIFEST
 
 # PyInstaller
