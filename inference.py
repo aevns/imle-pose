@@ -10,7 +10,6 @@ from matplotlib.patches import Ellipse
 
 import torchvision
 import torchvision.transforms as transforms
-import cv2
 
 from torch import dtype, uint8
 from tqdm import tqdm

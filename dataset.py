@@ -6,7 +6,7 @@ import h5py
 Device = "cuda:0"
 
 class HDF5Dataset(torch.utils.data.Dataset):
-    def __init__(self, data_file = "./data/stick/train.hdf5", swap_rate = 0, generate_heatmaps = False, target_heatmap_sigma = 2):
+    def __init__(self, data_file = "./data/stick/train.hdf5", leg_swaps = 0, arm_swaps = 0, generate_heatmaps = False, target_heatmap_sigma = 2):
         super(HDF5Dataset).__init__()
 
         with h5py.File(data_file, 'r') as df:
@@ -19,8 +19,13 @@ class HDF5Dataset(torch.utils.data.Dataset):
 
         self.image_size = torch.tensor(self.images[0].shape[1:], device=Device)
 
-        if swap_rate > 0:
-            swaps = torch.rand(self.poses.shape[0], device=Device) < swap_rate
+        if arm_swaps > 0:
+            swaps = torch.rand(self.poses.shape[0], device=Device) < arm_swaps
+            swapped_indices = torch.tensor([0,1,2,3,4,6,5,8,7,10,9,11,12,13,14,15,16], dtype=torch.long, device=Device)
+            self.poses[swaps] = self.poses[swaps][:,swapped_indices]
+        
+        if leg_swaps > 0:
+            swaps = torch.rand(self.poses.shape[0], device=Device) < leg_swaps
             swapped_indices = torch.tensor([0,1,2,3,4,5,6,7,8,9,10,12,11,14,13,16,15], dtype=torch.long, device=Device)
             self.poses[swaps] = self.poses[swaps][:,swapped_indices]
 
