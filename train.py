@@ -1,4 +1,7 @@
+import argparse
+
 import os
+import random
 
 import torch
 from torch.profiler import profile, record_function, ProfilerActivity
@@ -10,30 +13,58 @@ from models.unet_pretrained import UNet
 # TODO: Use a config. for this instead of simply altering the training script, OR
 # split this into two scripts (train, and one that operates like a config)
 #########################################################################
+print(torch.cuda.get_arch_list())
+print([torch.cuda.device(i) for i in range(torch.cuda.device_count())])
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--dataroot', '-d')
+parser.add_argument('--batchsize', '-b', nargs='?', default=64, type=int)
+parser.add_argument('--model', '-m', nargs='?', default='UNet')
+parser.add_argument('--start', '-s', nargs='?', default=0, type=int)
+parser.add_argument('--end', '-e', nargs='?', default=400, type=int)
+parser.add_argument('--loss', '-l', nargs='?', default='gaussian')
+parser.add_argument('--samples', '-sm', nargs='?', default=10, type=int)
+parser.add_argument('--combine', '-c', nargs='?', default='select')
+parser.add_argument('--armswaps', '-as', nargs='?', default=0, type=float)
+parser.add_argument('--legswaps', '-ls', nargs='?', default=0, type=float)
+parser.add_argument('--output', '-o', nargs='?', default='unnamed')
+args = parser.parse_args()
 torch.autograd.set_detect_anomaly(False)
 
-start_epoch = 0
-num_epochs = 80
-batch_size = 32
+start_epoch = args.start
+num_epochs = args.end
+batch_size = args.batchsize
 
-data_file = "data/simple/train.hdf5"
-swap_rate = 0.5
+annotation_file = args.dataroot + "person_keypoints_train.json"
+data_file = args.dataroot + "train.hdf5"
+leg_swaps = args.legswaps
+arm_swaps = args.armswaps
 
+#TODO: use model input for different models
 network = UNet
 noise_length = 8
-samples = 20
-loss_function = lf.heatmap_target_mse
-generate_heatmaps = True
-sample_method = "select"
 
-output_folder = "pretrained_test"
+samples = args.samples
+if args.loss == 'gaussian':
+    loss_function = lf.gaussian_nll
+    generate_heatmaps = False
+elif args.loss == 'mse':
+    loss_function = lf.heatmap_target_mse
+    generate_heatmaps = True
+elif args.loss == 'dkl':
+    loss_function = lf.heatmap_target_dkl
+    generate_heatmaps = True
+
+sample_method = args.combine
+
+output_folder = args.output
 model_description = network.name + "_" + str(noise_length) + "_" + sample_method + "_" + str(samples) + "_" + loss_function.__name__
 #########################################################################
 
 os.makedirs(os.path.dirname("output/{}/state_dict/".format(output_folder)), exist_ok=True)
 os.makedirs(os.path.dirname("output/{}/training_log/".format(output_folder)), exist_ok=True)
 
-train_data = HDF5Dataset(data_file, swap_rate, generate_heatmaps=generate_heatmaps)
+train_data = HDF5Dataset(data_file, leg_swaps, arm_swaps, generate_heatmaps=generate_heatmaps)
 
 train_loader = torch.utils.data.DataLoader(
     train_data,
