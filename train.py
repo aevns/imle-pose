@@ -20,6 +20,7 @@ parser.add_argument('--dataroot', '-d')
 parser.add_argument('--batchsize', '-b', nargs='?', default=64, type=int)
 parser.add_argument('--model', '-m', nargs='?', default='UNet')
 parser.add_argument('--start', '-s', nargs='?', default=0, type=int)
+parser.add_argument('--checkpoints', '-cp', nargs='?', default=1, type=int)
 parser.add_argument('--end', '-e', nargs='?', default=400, type=int)
 parser.add_argument('--loss', '-l', nargs='?', default='gaussian')
 parser.add_argument('--samples', '-sm', nargs='?', default=10, type=int)
@@ -31,7 +32,8 @@ args = parser.parse_args()
 torch.autograd.set_detect_anomaly(False)
 
 start_epoch = args.start
-num_epochs = args.end
+end_epoch = args.end
+checkpoint_freq = (end_epoch - start_epoch) / args.checkpoints
 batch_size = args.batchsize
 
 annotation_file = args.dataroot + "person_keypoints_train.json"
@@ -84,7 +86,7 @@ model.training = True
 
 loss_history = []
 optimizer = torch.optim.Adam(model.parameters(), lr = 0.001)
-for e in range(start_epoch, num_epochs):
+for e in range(start_epoch, end_epoch):
     logfile = open("output/{}/training_log/log.csv".format(output_folder), "w+")
     train_iter = iter(train_loader)
     for i in range(len(train_loader)):
@@ -104,9 +106,10 @@ for e in range(start_epoch, num_epochs):
         
         loss_history.append(loss.item())
 
-        if i%(len(train_loader)//10)==0:
+        if (i+1)%(len(train_loader)//10)==0:
             print("Epoch {}, iteration {} of {} ({} %), loss={}".format(e, i, len(train_loader), 100*i//len(train_loader), loss_history[-1]))
             logfile.write("Epoch:,{},iteration:,{},of,{},loss:,{}, model,{}\n".format(e, i, len(train_loader), loss_history[-1], model_description))
-    torch.save(model.state_dict(), "output/{}/state_dict/network_{}.pth".format(output_folder, e))
+    if (e+1) % checkpoint_freq == 0:
+        torch.save(model.state_dict(), "output/{}/state_dict/network_{}.pth".format(output_folder, e))
     logfile.flush()
     logfile.close()

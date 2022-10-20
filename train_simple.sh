@@ -4,7 +4,7 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=8G
-#SBATCH --time=4:00:00
+#SBATCH --time=16:00:00
 #SBATCH --array=0-5
 
 ### create virtual environment on every node
@@ -18,7 +18,7 @@ pip install torch --no-index
 pip install --no-index -r requirements.txt
 
 ### extract dataset
-dataset=stick
+dataset=simple
 ###cp ../scratch/data/$dataset/train.hdf5 $SLURM_TMPDIR/
 ###cp ../scratch/data/$dataset/person_keypoints_train.json $SLURM_TMPDIR/
 
