@@ -117,7 +117,20 @@ class UNet(nn.Module):
                     noise[mask] = z[mask]
         return self.loss(self.forward(x, noise), x)
 
-    def mixed_sample_loss(self, x, n):
+    def mixed_sample_backward(self, x, n):
+        net_prob = 0
+        for i in range(n):
+            z = torch.randn((x['image'].shape[0], self.noise_length), device = x['image'].device)
+            pred = self.forward(x, z)
+            prob = torch.exp(-torch.mean(self.loss(pred, x)))
+            prob.backward()
+            net_prob += prob.item()
+        with torch.no_grad():
+            for param in self.parameters():
+                param.grad /= -net_prob
+        return -log(net_prob)
+
+    def mixed_sample_loss_parallel(self, x, n):
         losses = torch.zeros((n, x['image'].shape[0]), device = x['image'].device)
         for s in range(n):
             z = torch.randn((x['image'].shape[0], self.noise_length), device = x['image'].device)
