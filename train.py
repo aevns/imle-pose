@@ -131,12 +131,16 @@ for e in range(start_epoch, end_epoch):
             optimizer.zero_grad()
 
             if sample_method == "mixed":
-                losses = model.mixed_sample_loss(batch, samples)
+                loss = model.mixed_sample_backward(batch, samples)
             elif sample_method == "select":
                 losses = model.min_sample_loss(batch, samples)
+                loss = torch.mean(losses)
+                loss.backward()
             else:
                 losses = model.loss(model(batch), batch)
-            loss = torch.mean(losses)
+                loss = torch.mean(losses)
+                loss.backward()
+            optimizer.step()
             val_loss += loss.item()
     
     wandb.log({

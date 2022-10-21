@@ -1,3 +1,4 @@
+from math import exp
 from math import log
 from math import floor
 import torch
@@ -118,11 +119,40 @@ class UNet(nn.Module):
         return self.loss(self.forward(x, noise), x)
 
     def mixed_sample_backward(self, x, n):
+        net_grad = {}
+        net_nll = 0
+        for i in range(n):
+            z = torch.randn((x['image'].shape[0], self.noise_length), device = x['image'].device)
+            pred = self.forward(x, z)
+            nll = torch.mean(self.loss(pred, x))
+            self.zero_grad()
+            nll.backward()
+            with torch.no_grad():
+                if i==0:
+                    for name, param in self.named_parameters():
+                        net_grad[name] = param.grad.detach().clone()
+                    net_nll = nll
+                else:
+                    stabilizer = torch.max(net_nll, nll)
+                    for name, param in self.named_parameters():
+                        net_grad[name] = (
+                            (exp(net_nll - stabilizer) * param.grad
+                            + exp(nll - stabilizer) * net_grad[name])
+                            / (exp(net_nll - stabilizer) + exp(nll - stabilizer)))
+                    net_nll = -torch.log(torch.exp(-net_nll + stabilizer) + torch.exp(-nll + stabilizer)) + stabilizer
+        with torch.no_grad():  
+            for name, param in self.named_parameters():
+                param.grad = net_grad[name]
+            return net_nll
+
+    def mixed_sample_backward_bad(self, x, n):
+        net_grad = {}
         net_prob = 0
         for i in range(n):
             z = torch.randn((x['image'].shape[0], self.noise_length), device = x['image'].device)
             pred = self.forward(x, z)
-            prob = torch.exp(-torch.mean(self.loss(pred, x)))
+            nll = torch.mean(self.loss(pred, x))
+            prob = torch.exp(-nll)
             prob.backward()
             net_prob += prob.item()
         with torch.no_grad():
