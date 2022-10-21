@@ -4,8 +4,8 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=8G
-#SBATCH --time=18:00:00
-#SBATCH --array=0-2
+#SBATCH --time=24:00:00
+#SBATCH --array=0-3
 
 ### create virtual environment on every node
 module load python/3.9.6
@@ -17,6 +17,8 @@ pip install --no-index --upgrade pip
 pip install torch --no-index
 pip install --no-index -r requirements.txt
 
+wandb login 9a92298caf7b15ab1719f839763164b8932817a9
+
 ### extract dataset
 dataset=simple
 ###cp ../scratch/data/$dataset/train.hdf5 $SLURM_TMPDIR/
@@ -25,7 +27,16 @@ dataset=simple
 models=(
    UNet
    UNetPretrained
+   UNet
+   UNetPretrained
 )
 the_models=${models[$SLURM_ARRAY_TASK_ID]}
+combine=(
+   select
+   select
+   mixed
+   mixed
+)
+the_combine=${combine[$SLURM_ARRAY_TASK_ID]}
 
-python train.py -d ../scratch/data/$dataset/ --model $the_models --start 0 --checkpoints 100 --end 3000 --loss gaussian --legswaps 0.5 --armswaps 0.1 --output simple_full_$SLURM_ARRAY_TASK_ID
+python train.py -d data_quick/$dataset/ --model $the_models --start 0 --checkpoints 100 --end 6000 --loss gaussian --combine $the_combine --legswaps 0 --armswaps 0 --output simple_full_$SLURM_ARRAY_TASK_ID

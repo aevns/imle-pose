@@ -11,6 +11,8 @@ from dataset import HDF5Dataset
 from models.unet import UNet
 from models.unet_pretrained import UNetPretrained
 
+import wandb
+
 #########################################################################
 print(torch.cuda.get_arch_list())
 print([torch.cuda.device(i) for i in range(torch.cuda.device_count())])
@@ -23,7 +25,7 @@ parser.add_argument('--start', '-s', nargs='?', default=0, type=int)
 parser.add_argument('--checkpoints', '-cp', nargs='?', default=1, type=int)
 parser.add_argument('--end', '-e', nargs='?', default=400, type=int)
 parser.add_argument('--loss', '-l', nargs='?', default='gaussian')
-parser.add_argument('--samples', '-sm', nargs='?', default=10, type=int)
+parser.add_argument('--samples', '-sm', nargs='?', default=20, type=int)
 parser.add_argument('--combine', '-c', nargs='?', default='select')
 parser.add_argument('--armswaps', '-as', nargs='?', default=0, type=float)
 parser.add_argument('--legswaps', '-ls', nargs='?', default=0, type=float)
@@ -36,10 +38,16 @@ end_epoch = args.end
 checkpoint_freq = (end_epoch - start_epoch) / args.checkpoints
 batch_size = args.batchsize
 
-annotation_file = args.dataroot + "person_keypoints_train.json"
-data_file = args.dataroot + "train.hdf5"
+train_data_filename = args.dataroot + "train.hdf5"
+val_data_filename = args.dataroot + "val.hdf5"
+
 leg_swaps = args.legswaps
 arm_swaps = args.armswaps
+
+# Run parameters
+wandb.init(
+    project="imle-pose",
+    config = {'args': args})
 
 if args.model == 'UNet':
     network = UNet
@@ -61,16 +69,25 @@ elif args.loss == 'dkl':
 sample_method = args.combine
 
 output_folder = args.output
-model_description = network.name + "_" + str(noise_length) + "_" + sample_method + "_" + str(samples) + "_" + loss_function.__name__
 #########################################################################
 
 os.makedirs(os.path.dirname("output/{}/state_dict/".format(output_folder)), exist_ok=True)
 os.makedirs(os.path.dirname("output/{}/training_log/".format(output_folder)), exist_ok=True)
 
-train_data = HDF5Dataset(data_file, leg_swaps, arm_swaps, generate_heatmaps=generate_heatmaps)
+train_data = HDF5Dataset(train_data_filename, leg_swaps, arm_swaps, generate_heatmaps=generate_heatmaps)
+val_data = HDF5Dataset(val_data_filename, leg_swaps, arm_swaps, generate_heatmaps=generate_heatmaps)
 
 train_loader = torch.utils.data.DataLoader(
     train_data,
+    batch_size=batch_size,
+    num_workers=0,
+    pin_memory=False,
+    shuffle=True,
+    drop_last=True
+)
+
+val_loader = torch.utils.data.DataLoader(
+    val_data,
     batch_size=batch_size,
     num_workers=0,
     pin_memory=False,
@@ -83,11 +100,11 @@ if start_epoch > 0:
     state_dict = torch.load("output/{}/state_dict/network_{}.pth".format(output_folder, start_epoch - 1))
     model.load_state_dict(state_dict)
 model.training = True
+wandb.watch(model, log_freq=len(train_loader)//batch_size)
 
-loss_history = []
 optimizer = torch.optim.Adam(model.parameters(), lr = 0.001)
 for e in range(start_epoch, end_epoch):
-    logfile = open("output/{}/training_log/log.csv".format(output_folder), "w+")
+    train_loss = 0
     train_iter = iter(train_loader)
     for i in range(len(train_loader)):
         batch = next(train_iter)
@@ -100,16 +117,31 @@ for e in range(start_epoch, end_epoch):
         else:
             losses = model.loss(model(batch), batch)
         loss = torch.mean(losses)
-        
         loss.backward()
         optimizer.step()
-        
-        loss_history.append(loss.item())
+        train_loss += loss.item()
+    
+    with torch.no_grad():
+        val_loss = 0
+        val_iter = iter(val_loader)
+        for i in range(len(val_loader)):
+            batch = next(val_iter)
+            optimizer.zero_grad()
 
-        if (i+1)%(len(train_loader)//10)==0:
-            print("Epoch {}, iteration {} of {} ({} %), loss={}".format(e, i, len(train_loader), 100*i//len(train_loader), loss_history[-1]))
-            logfile.write("Epoch:,{},iteration:,{},of,{},loss:,{}, model,{}\n".format(e, i, len(train_loader), loss_history[-1], model_description))
+            if sample_method == "mixed":
+                losses = model.mixed_sample_loss(batch, samples)
+            elif sample_method == "select":
+                losses = model.min_sample_loss(batch, samples)
+            else:
+                losses = model.loss(model(batch), batch)
+            loss = torch.mean(losses)
+            val_loss += loss.item()
+    
+    wandb.log({
+        "epoch": e,
+        "training loss": train_loss / len(train_loader),
+        "validation loss": val_loss / len(val_loader),
+    })
+
     if (e+1) % checkpoint_freq == 0:
         torch.save(model.state_dict(), "output/{}/state_dict/network_{}.pth".format(output_folder, e))
-    logfile.flush()
-    logfile.close()

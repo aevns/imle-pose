@@ -8,6 +8,7 @@ GitPython==3.1.27+computecanada
 h5py==3.6.0+computecanada
 idna==3.4+computecanada
 numpy==1.23.0+computecanada
+opencv_python_headless==4.6.0.66+computecanada
 pathtools==0.1.2+computecanada
 Pillow_SIMD==9.0.0.post1+computecanada
 promise==2.3+computecanada
