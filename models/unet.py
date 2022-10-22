@@ -145,20 +145,16 @@ class UNet(nn.Module):
                 param.grad = net_grad[name]
             return net_nll
 
-    def mixed_sample_backward_bad(self, x, n):
-        net_grad = {}
-        net_prob = 0
-        for i in range(n):
-            z = torch.randn((x['image'].shape[0], self.noise_length), device = x['image'].device)
-            pred = self.forward(x, z)
-            nll = torch.mean(self.loss(pred, x))
-            prob = torch.exp(-nll)
-            prob.backward()
-            net_prob += prob.item()
-        with torch.no_grad():
-            for param in self.parameters():
-                param.grad /= -net_prob
-        return -log(net_prob)
+    def mixed_sample_loss(self, x, n):
+        net_nll = 0
+        with torch.no_grad():  
+            for i in range(n):
+                z = torch.randn((x['image'].shape[0], self.noise_length), device = x['image'].device)
+                pred = self.forward(x, z)
+                nll = torch.mean(self.loss(pred, x))
+                stabilizer = torch.max(net_nll, nll)
+                net_nll = -torch.log(torch.exp(-net_nll + stabilizer) + torch.exp(-nll + stabilizer)) + stabilizer
+                return net_nll
 
     def mixed_sample_loss_parallel(self, x, n):
         losses = torch.zeros((n, x['image'].shape[0]), device = x['image'].device)
