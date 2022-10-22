@@ -4,8 +4,8 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=8G
-#SBATCH --time=24:00:00
-#SBATCH --array=0-3
+#SBATCH --time=48:00:00
+#SBATCH --array=0-1
 
 ### create virtual environment on every node
 module load python/3.9.6
@@ -27,16 +27,12 @@ dataset=simple
 models=(
    UNet
    UNetPretrained
-   UNet
-   UNetPretrained
 )
 the_models=${models[$SLURM_ARRAY_TASK_ID]}
 combine=(
-   select
-   select
    mixed
    mixed
 )
 the_combine=${combine[$SLURM_ARRAY_TASK_ID]}
 
-python train.py -d data_quick/$dataset/ --model $the_models --start 0 --checkpoints 100 --end 6000 --loss gaussian --combine $the_combine --legswaps 0 --armswaps 0 --output simple_full_$SLURM_ARRAY_TASK_ID
+python train.py -d data_quick/$dataset/ --model $the_models --start 0 --checkpoints 200 --end 6000 --loss gaussian --combine $the_combine --legswaps 0 --armswaps 0 --output simple_mixture_$SLURM_ARRAY_TASK_ID

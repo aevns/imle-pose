@@ -13,6 +13,8 @@ from models.unet_pretrained import UNetPretrained
 
 import wandb
 
+wandb.login(key='9a92298caf7b15ab1719f839763164b8932817a9')
+
 #########################################################################
 print(torch.cuda.get_arch_list())
 print([torch.cuda.device(i) for i in range(torch.cuda.device_count())])

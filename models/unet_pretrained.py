@@ -138,16 +138,45 @@ class UNetPretrained(nn.Module):
                     noise[mask] = z[mask]
         return self.loss(self.forward(x, noise), x)
 
-    def mixed_sample_loss(self, x, n):
-        losses = torch.zeros((n, x['image'].shape[0]), device = x['image'].device)
-        for s in range(n):
+    def mixed_sample_backward(self, x, n):
+        net_grad = {}
+        for i in range(n):
             z = torch.randn((x['image'].shape[0], self.noise_length), device = x['image'].device)
             pred = self.forward(x, z)
-            losses[s] = self.loss(pred, x)
-        dummy, _ = torch.min(losses, dim=0)
-        
-        return dummy + log(n) - torch.log(torch.sum(torch.exp(dummy - losses), dim=0))
+            nll = torch.mean(self.loss(pred, x))
+            self.zero_grad()
+            nll.backward()
+            with torch.no_grad():
+                if i==0:
+                    for name, param in self.named_parameters():
+                        net_grad[name] = param.grad.detach().clone()
+                    net_nll = nll
+                else:
+                    stabilizer = torch.max(net_nll, nll)
+                    for name, param in self.named_parameters():
+                        net_grad[name] = (
+                            (torch.exp(net_nll - stabilizer) * param.grad
+                            + torch.exp(nll - stabilizer) * net_grad[name])
+                            / (torch.exp(net_nll - stabilizer) + torch.exp(nll - stabilizer)))
+                    net_nll = -torch.log(torch.exp(-net_nll + stabilizer) + torch.exp(-nll + stabilizer)) + stabilizer
+        with torch.no_grad():  
+            for name, param in self.named_parameters():
+                param.grad = net_grad[name]
+            return net_nll
 
+    def mixed_sample_loss(self, x, n):
+        with torch.no_grad():  
+            for i in range(n):
+                z = torch.randn((x['image'].shape[0], self.noise_length), device = x['image'].device)
+                pred = self.forward(x, z)
+                nll = torch.mean(self.loss(pred, x))
+                if i==0:
+                    net_nll = nll
+                else:
+                    stabilizer = torch.max(net_nll, nll)
+                    net_nll = -torch.log(torch.exp(-net_nll + stabilizer) + torch.exp(-nll + stabilizer)) + stabilizer
+            return net_nll
+    
     def normalize(pred):
         n, c, h, w = pred.shape
 
