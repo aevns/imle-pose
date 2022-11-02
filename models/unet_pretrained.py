@@ -123,6 +123,10 @@ class UNetPretrained(nn.Module):
         z = torch.randn((x['image'].shape[0], self.noise_length), device = x['image'].device)
         return self.forward(x, z)
 
+    def unconditioned_loss(self, x):
+        z = torch.zeros((x['image'].shape[0], self.noise_length), device = x['image'].device)
+        return self.loss(self.forward(x, z), x)
+    
     def min_sample_loss(self, x, n):
         with torch.no_grad():
             for s in range(n):

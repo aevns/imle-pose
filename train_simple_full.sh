@@ -30,9 +30,9 @@ models=(
 )
 the_models=${models[$SLURM_ARRAY_TASK_ID]}
 combine=(
-   mixed
-   mixed
+   constant
+   constant
 )
 the_combine=${combine[$SLURM_ARRAY_TASK_ID]}
 
-python train.py -d data_quick/$dataset/ --model $the_models --start 0 --checkpoints 200 --end 6000 --loss gaussian --combine $the_combine --legswaps 0 --armswaps 0 --output simple_mixture_$SLURM_ARRAY_TASK_ID
+python train.py -d data_quick/$dataset/ --model $the_models --start 0 --checkpoints 200 --end 6000 --loss gaussian --samples 1 --combine $the_combine --legswaps 0 --armswaps 0 --output simple_constant_$SLURM_ARRAY_TASK_ID

@@ -118,8 +118,8 @@ for e in range(start_epoch, end_epoch):
             losses = model.min_sample_loss(batch, samples)
             loss = torch.mean(losses)
             loss.backward()
-        else:
-            losses = model.loss(model(batch), batch)
+        elif sample_method == "constant":
+            losses = model.unconditioned_loss(batch)
             loss = torch.mean(losses)
             loss.backward()
         optimizer.step()
@@ -137,8 +137,8 @@ for e in range(start_epoch, end_epoch):
             elif sample_method == "select":
                 losses = model.min_sample_loss(batch, samples)
                 loss = torch.mean(losses)
-            else:
-                losses = model.loss(model(batch), batch)
+            elif sample_method == "constant":
+                losses = model.unconditioned_loss(batch)
                 loss = torch.mean(losses)
             val_loss += loss.item()
     
