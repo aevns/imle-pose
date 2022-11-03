@@ -27,7 +27,7 @@ with open(root + collection_json, 'r') as fid:
 
 file_out = {}
 file_out['info'] = copy.deepcopy(file['info'])
-file_out['info']['description'] = 'Stick Dataset (generated from COCO 2017 Dataset)'
+file_out['info']['description'] = 'Simple Dataset (generated from COCO 2017 Dataset)'
 file_out['licenses'] = copy.deepcopy(file['licenses'])
 file_out['images'] = {}
 file_out['annotations'] = {}
