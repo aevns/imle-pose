@@ -43,8 +43,8 @@ for collection in collections:
         pose_set = write_file.create_dataset('poses', (0, bones, 3), maxshape=(count, bones, 3), chunks=True)
 
         if collection == 'train':
-            mean_color = torch.zeros((chunks, 3))
-            std_color = torch.zeros((chunks, 3))
+            mean_color = torch.zeros((3,))
+            std_color = torch.zeros((3,))
 
         total_count = 0
         prev_count = 0
