@@ -129,7 +129,7 @@ for e in range(start_epoch, end_epoch):
         val_loss = 0
         val_iter = iter(val_loader)
         for i in range(len(val_loader)):
-            batch = next(val_iter)
+            batch = {k:v.cuda(non_blocking = True) for k, v in next(val_iter).items()}
             optimizer.zero_grad()
 
             if sample_method == "mixed":
