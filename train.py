@@ -83,7 +83,7 @@ train_loader = torch.utils.data.DataLoader(
     train_data,
     batch_size=batch_size,
     num_workers=0,
-    pin_memory=False,
+    pin_memory=True,
     shuffle=True,
     drop_last=True
 )
@@ -92,7 +92,7 @@ val_loader = torch.utils.data.DataLoader(
     val_data,
     batch_size=batch_size,
     num_workers=0,
-    pin_memory=False,
+    pin_memory=True,
     shuffle=True,
     drop_last=True
 )
@@ -109,7 +109,7 @@ for e in range(start_epoch, end_epoch):
     train_loss = 0
     train_iter = iter(train_loader)
     for i in range(len(train_loader)):
-        batch = next(train_iter)
+        batch = {k:v.cuda(non_blocking = True) for k, v in next(train_iter).items()}
         optimizer.zero_grad()
 
         if sample_method == "mixed":
