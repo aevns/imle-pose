@@ -19,7 +19,7 @@
             "program": "C:/Users/AE/Documents/GitHub/imle-pose/train.py",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args":["-d","data/complete/","-m","UNet","-l","gaussian","-c","select","-ls","0","-as","0", "-cp", "400", "-o","complete_0"]
+            "args":["-d","data/complete/","-m","UNet","-l","gaussian","-c","select","-sm","30","-ls","0","-as","0","-cp","400","-o","complete_0"]
         }
     ]
 }

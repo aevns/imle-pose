@@ -32,3 +32,8 @@ def heatmap_target_dkl(pred, x):
     eps = torch.tensor([1E-8], device=x['target'].device)
     target = torch.max(x['target'] / torch.sum(x['target'], dim=(-3,-2,-1)).view(-1,1,1,1), eps)
     return torch.sum(target * torch.log(torch.max(pred['heatmap'], eps) / target), dim=(-3,-2,-1))
+
+def heatmap_target_prob_prod(pred, x):
+    eps = torch.tensor([1E-8], device=x['target'].device)
+    target = torch.max(x['target'] / torch.sum(x['target'], dim=(-3,-2,-1)).view(-1,1,1,1), eps)
+    return torch.prod(torch.sum(target * torch.max(pred['heatmap'], eps), dim=(-2,-1)), dim=-1)
