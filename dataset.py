@@ -23,7 +23,7 @@ class HDF5Sampler(torch.utils.data.Sampler):
             generator = self.generator
 
         for chunk in self.data_source.iter_chunks():
-            self.data_source.set_buffers(chunk)
+            self.data_source.set_buffers(chunk[0])
             yield from(torch.randperm(chunk[0].stop - chunk[0].start, generator=generator)).tolist()
 
 class HDF5Dataset(torch.utils.data.Dataset):
@@ -63,9 +63,9 @@ class HDF5Dataset(torch.utils.data.Dataset):
         self._sigma = target_heatmap_sigma
         self._feat_stride = np.array(self.hdf5['images'][0,0].shape) / np.array(self._heatmap_size)
     
-    def set_buffers(self, slice):
-        self.pose_buffer = torch.tensor(np.array(self.hdf5['poses'][slice[0]]), dtype=torch.float, device=self.device)
-        self.image_buffer = torch.tensor(np.array(self.hdf5['images'][slice]), dtype=torch.float, device=self.device)
+    def set_buffers(self, chunk):
+        self.pose_buffer = torch.tensor(self.hdf5['poses'][chunk], dtype=torch.float, device=self.device)
+        self.image_buffer = torch.tensor(self.hdf5['images'][chunk], dtype=torch.float, device=self.device)
 
     # converted from SimplePose target generator
     # joints_3d -> joints_2d (joints_3d was (x,y,s), where s is a label mask)
