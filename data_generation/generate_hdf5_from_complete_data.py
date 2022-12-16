@@ -7,9 +7,10 @@ import json
 import cv2
 import h5py
 
-root = 'quick_data/complete/'
+compression = "gzip"
+root = 'data/complete/'
 collections = ['train','val']
-max_chunk_size = 1000
+max_chunk_size = 1024
 
 for collection in collections:
 
@@ -33,14 +34,14 @@ for collection in collections:
     ])
     
     # writing annotation data to hdf5
-    with h5py.File(root + collection + '.hdf5', 'w') as write_file:
+    with h5py.File(root + collection + '3.hdf5', 'w') as write_file:
         count = len(file['annotations'])
         chunks = 1 + (count - 1)//max_chunk_size
 
         write_file['keypoints'] = file['categories'][0]['keypoints']
         write_file['skeleton'] = file['categories'][0]['skeleton']
-        image_set = write_file.create_dataset('images', (0, 3, h, w), maxshape=(count, 3, h, w), chunks=True)
-        pose_set = write_file.create_dataset('poses', (0, bones, 3), maxshape=(count, bones, 3), chunks=True)
+        image_set = write_file.create_dataset('images', (0, 3, h, w), maxshape=(None, 3, h, w), chunks=(max_chunk_size, 3, h, w), compression=compression)
+        pose_set = write_file.create_dataset('poses', (0, bones, 3), maxshape=(None, bones, 3), chunks=(max_chunk_size, bones, 3))
 
         if collection == 'train':
             mean_color = torch.zeros((3,))

@@ -1,12 +1,14 @@
 import argparse
 
 import os
+from math import prod
 import random
 
 import torch
 from torch.profiler import profile, record_function, ProfilerActivity
 
 import models.utils.loss_functions as lf
+from dataset import HDF5Sampler
 from dataset import HDF5Dataset
 from models.unet import UNet
 from models.unet_pretrained import UNetPretrained
@@ -76,25 +78,29 @@ output_folder = args.output
 os.makedirs(os.path.dirname("output/{}/state_dict/".format(output_folder)), exist_ok=True)
 os.makedirs(os.path.dirname("output/{}/training_log/".format(output_folder)), exist_ok=True)
 
-train_data = HDF5Dataset(train_data_filename, leg_swaps, arm_swaps, generate_heatmaps=generate_heatmaps)
-val_data = HDF5Dataset(val_data_filename, leg_swaps, arm_swaps, generate_heatmaps=generate_heatmaps)
+train_data = HDF5Dataset(train_data_filename, leg_swaps, arm_swaps, generate_heatmaps=generate_heatmaps, device="cuda:0")
+val_data = HDF5Dataset(val_data_filename, leg_swaps, arm_swaps, generate_heatmaps=generate_heatmaps, device="cuda:0")
+
+train_sampler = HDF5Sampler(
+    data_source=train_data
+)
+
+val_sampler = HDF5Sampler(
+    data_source=val_data
+)
 
 train_loader = torch.utils.data.DataLoader(
     train_data,
     batch_size=batch_size,
     num_workers=0,
-    pin_memory=True,
-    shuffle=True,
-    drop_last=True
+    sampler=train_sampler
 )
 
 val_loader = torch.utils.data.DataLoader(
     val_data,
-    batch_size=batch_size,
+    batch_size = batch_size,
     num_workers=0,
-    pin_memory=True,
-    shuffle=True,
-    drop_last=True
+    sampler=val_sampler
 )
 
 model = network(loss_function, train_data.image_size, noise_length=noise_length).cuda()
