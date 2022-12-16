@@ -4,32 +4,9 @@ import torch
 import torchvision.transforms as transforms
 import h5py
 
-class HDF5Sampler(torch.utils.data.Sampler):
-    def __init__(self, data_source, generator = None):
-        super().__init__(data_source)
-        self.data_source = data_source
-        self.generator = generator
-
-    def __len__(self) -> int:
-        return len(self.data_source)
-
-    def __iter__(self) -> Iterator[int]:
-        n = len(self.data_source)
-        if self.generator is None:
-            seed = int(torch.empty((), dtype=torch.int64).random_().item())
-            generator = torch.Generator()
-            generator.manual_seed(seed)
-        else:
-            generator = self.generator
-
-        for chunk in self.data_source.iter_chunks():
-            self.data_source.set_buffers(chunk)
-            yield from(torch.randperm(chunk[0].stop - chunk[0].start, generator=generator)).tolist()
-
 class HDF5Dataset(torch.utils.data.Dataset):
     def __init__(self,
     data_file = "./data/stick/train.hdf5",
-    buffer_size = 64 * 64,
     leg_swaps = 0,
     arm_swaps = 0,
     generate_heatmaps = False,
@@ -37,18 +14,18 @@ class HDF5Dataset(torch.utils.data.Dataset):
     device = "cuda:0"):
         super().__init__()
         self.device = device
-        self.hdf5 = h5py.File(data_file, 'r', libver="latest", swmr=True)
+        self.data_file = data_file
+        hdf5 = h5py.File(data_file, 'r', libver="latest", swmr=True)
 
-        self.mean = torch.from_numpy(self.hdf5['mean_color'][...])
-        self.std = torch.from_numpy(self.hdf5['std_color'][...])
-        self.keypoints = self.hdf5['keypoints'][...]
-        self.skeleton = self.hdf5['skeleton'][...]
+        self.mean = torch.from_numpy(hdf5['mean_color'][...])
+        self.std = torch.from_numpy(hdf5['std_color'][...])
+        self.keypoints = hdf5['keypoints'][...]
+        self.skeleton = hdf5['skeleton'][...]
+        self.length = len(hdf5['poses'])
 
-        self.image_size = torch.tensor(self.hdf5['images'][0].shape[1:])
-        self.chunks = list(self.hdf5['images'].chunks)
-        self.iter_chunks = self.hdf5['images'].iter_chunks
-        self.chunk_list = list(self.hdf5['images'].iter_chunks())
+        self.image_size = torch.tensor(hdf5['images'][0].shape[1:])
 
+        self.buffer_index = None
         self.pose_buffer = None
         self.image_buffer = None
 
@@ -61,11 +38,9 @@ class HDF5Dataset(torch.utils.data.Dataset):
         self.generate_heatmaps = generate_heatmaps
         self._heatmap_size = self.image_size.cpu().detach().numpy()
         self._sigma = target_heatmap_sigma
-        self._feat_stride = np.array(self.hdf5['images'][0,0].shape) / np.array(self._heatmap_size)
-    
-    def set_buffers(self, slice):
-        self.pose_buffer = torch.tensor(np.array(self.hdf5['poses'][slice[0]]), dtype=torch.float, device=self.device)
-        self.image_buffer = torch.tensor(np.array(self.hdf5['images'][slice]), dtype=torch.float, device=self.device)
+        self._feat_stride = np.array(hdf5['images'][0,0].shape) / np.array(self._heatmap_size)
+
+        hdf5.close()
 
     # converted from SimplePose target generator
     # joints_3d -> joints_2d (joints_3d was (x,y,s), where s is a label mask)
@@ -112,11 +87,13 @@ class HDF5Dataset(torch.utils.data.Dataset):
         return torch.tensor(target, device=self.device), np.expand_dims(target_weight, -1)
     
     def __len__(self):
-        return len(self.hdf5['poses'])
+        return self.length
     
     def __getitem__(self, idx):
-        pose = self.pose_buffer[idx]
-        image = self.image_buffer[idx]
+        hdf5 = h5py.File(self.data_file, 'r', libver="latest", swmr=True)
+        pose = torch.tensor(hdf5['poses'][idx])
+        image = torch.tensor(hdf5['images'][idx])
+        hdf5.close()
         sample = {'image': self.normalize(image),
                   'pose': pose,
                   'target': self._target_generator(pose)[0]}
