@@ -18,7 +18,7 @@ class UNetCenter(nn.Module):
     def _initialize(self):
         for name, m in self.named_modules():
             if isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, std=0.001)
+                nn.init.kaiming_normal_(m.weight, str='relu')
     
     def forward(self, x, z):
         out = self.relu(self.vectorize(x.view(-1, torch.prod(self.input_shape))))
@@ -44,9 +44,9 @@ class UNetStage(nn.Module):
     def _initialize(self):
         for name, m in self.named_modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.normal_(m.weight, std=0.001)
+                nn.init.kaiming_normal_(m.weight, str='relu')
             elif isinstance(m, nn.ConvTranspose2d):
-                nn.init.normal_(m.weight, std=0.001)
+                nn.init.kaiming_normal_(m.weight, str='relu')
     
     def forward(self, x, z):
         out = self.relu(self.bn1(self.conv1(x)))
@@ -90,7 +90,7 @@ class UNet(nn.Module):
     def _initialize(self):
         for name, m in self.named_modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.normal_(m.weight, std=0.001)
+                nn.init.kaiming_normal_(m.weight, str='relu')
 
     def forward(self, x, z):
         out = self.initial(x['image'])

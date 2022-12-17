@@ -112,6 +112,7 @@ val_loader = torch.utils.data.DataLoader(
     sampler=val_sampler)
 
 model = network(loss_function, train_data.image_size, noise_length=noise_length).cuda()
+
 if start_epoch > 0:
     state_dict = torch.load("output/{}/state_dict/network_{}.pth".format(output_folder, start_epoch - 1))
     model.load_state_dict(state_dict)

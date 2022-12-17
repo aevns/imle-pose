@@ -17,32 +17,36 @@ from collections import defaultdict
 
 import models.utils.loss_functions as lf
 
+from dataset import HDF5Sampler
 from dataset import HDF5Dataset
 from models.unet import UNet
 from models.unet_pretrained import UNetPretrained
 
-val_data = HDF5Dataset("data/simple/val.hdf5", 0.5, False)
+val_data = HDF5Dataset(
+    "data/complete/compressed/val.hdf5",
+    generate_heatmaps=False,
+    device="cuda:0")
 
+val_sampler = HDF5Sampler(
+    data_source=val_data)
+    
 val_loader = torch.utils.data.DataLoader(
     val_data,
-    batch_size=1,
+    batch_size = 1,
     num_workers=0,
-    pin_memory=False,
-    shuffle=False,
-    drop_last=True
-)
+    sampler=val_sampler)
 
-network = UNetPretrained(lf.gaussian_nll, val_data.image_size, 8).cuda()
+network = UNet(lf.gaussian_nll, val_data.image_size, 8).cuda()
 network.train(False)
 
-state_dict = torch.load("output/simple_full_1/state_dict/network_1000.pth")
+state_dict = torch.load("output/complete_0/state_dict/network_8.pth")
 network.load_state_dict(state_dict)
 network.training = False
 
 with torch.no_grad():
     samples = 100
     val_iter = iter(val_loader)
-    for i in range(233): # 5, 15, 17, 40, 77, 87, 91, 94, 95, 96, 101 # 197, 199?, 230?
+    for i in range(99): # 5, 15, 17, 40, 77, 87, 91, 94, 95, 96, 101 # 197, 199?, 230?
         batch = next(val_iter)
     batch_repeat = {
         'image': batch['image'].expand(samples, -1, -1, -1),
