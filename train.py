@@ -17,12 +17,13 @@ import wandb
 
 wandb.login(key='9a92298caf7b15ab1719f839763164b8932817a9')
 
-#########################################################################
 print(torch.cuda.get_arch_list())
 print([torch.cuda.device(i) for i in range(torch.cuda.device_count())])
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataroot', '-d')
+parser.add_argument('--learningrate', '-lr', nargs='?', default=0.001, type=float)
+parser.add_argument('--weightdecay', '-wd', nargs='?', default=0, type=float)
 parser.add_argument('--batchsize', '-b', nargs='?', default=64, type=int)
 parser.add_argument('--model', '-m', nargs='?', default='UNet')
 parser.add_argument('--start', '-s', nargs='?', default=0, type=int)
@@ -40,6 +41,8 @@ torch.autograd.set_detect_anomaly(False)
 start_epoch = args.start
 end_epoch = args.end
 checkpoint_freq = (end_epoch - start_epoch) / args.checkpoints
+learning_rate = args.learningrate
+weight_decay = args.weightdecay
 batch_size = args.batchsize
 
 train_data_filename = args.dataroot + "train.hdf5"
@@ -48,7 +51,6 @@ val_data_filename = args.dataroot + "val.hdf5"
 leg_swaps = args.legswaps
 arm_swaps = args.armswaps
 
-# Run parameters
 wandb.init(
     project="imle-pose",
     config = {'args': args})
@@ -73,45 +75,53 @@ elif args.loss == 'dkl':
 sample_method = args.combine
 
 output_folder = args.output
-#########################################################################
 
 os.makedirs(os.path.dirname("output/{}/state_dict/".format(output_folder)), exist_ok=True)
 os.makedirs(os.path.dirname("output/{}/training_log/".format(output_folder)), exist_ok=True)
 
-train_data = HDF5Dataset(train_data_filename, leg_swaps, arm_swaps, generate_heatmaps=generate_heatmaps, device="cuda:0")
-val_data = HDF5Dataset(val_data_filename, leg_swaps, arm_swaps, generate_heatmaps=generate_heatmaps, device="cuda:0")
+train_data = HDF5Dataset(
+    train_data_filename,
+    leg_swaps,
+    arm_swaps,
+    generate_heatmaps=generate_heatmaps,
+    device="cuda:0")
+
+val_data = HDF5Dataset(
+    val_data_filename,
+    leg_swaps,
+    arm_swaps,
+    generate_heatmaps=generate_heatmaps,
+    device="cuda:0")
 
 train_sampler = HDF5Sampler(
-    data_source=train_data
-)
+    data_source=train_data)
 
 val_sampler = HDF5Sampler(
-    data_source=val_data
-)
+    data_source=val_data)
 
 train_loader = torch.utils.data.DataLoader(
     train_data,
     batch_size=batch_size,
     num_workers=0,
-    sampler=train_sampler
-)
+    sampler=train_sampler)
 
 val_loader = torch.utils.data.DataLoader(
     val_data,
     batch_size = batch_size,
     num_workers=0,
-    sampler=val_sampler
-)
+    sampler=val_sampler)
 
 model = network(loss_function, train_data.image_size, noise_length=noise_length).cuda()
 if start_epoch > 0:
     state_dict = torch.load("output/{}/state_dict/network_{}.pth".format(output_folder, start_epoch - 1))
     model.load_state_dict(state_dict)
-model.training = True
 wandb.watch(model, log_freq=len(train_loader)//batch_size)
 
-optimizer = torch.optim.Adam(model.parameters(), lr = 0.001)
+optimizer = torch.optim.Adam(model.parameters(), lr = learning_rate, weight_decay=weight_decay)
 for e in range(start_epoch, end_epoch):
+
+    # TRAINING
+    model.training = True
     train_loss = 0
     train_iter = iter(train_loader)
     for i in range(len(train_loader)):
@@ -131,6 +141,8 @@ for e in range(start_epoch, end_epoch):
         optimizer.step()
         train_loss += loss.item()
     
+    # VALIDAITON
+    model.training = False
     with torch.no_grad():
         val_loss = 0
         val_iter = iter(val_loader)
@@ -148,6 +160,7 @@ for e in range(start_epoch, end_epoch):
                 loss = torch.mean(losses)
             val_loss += loss.item()
     
+    #LOGGING
     wandb.log({
         "epoch": e,
         "training loss": train_loss / len(train_loader),
@@ -155,4 +168,6 @@ for e in range(start_epoch, end_epoch):
     })
 
     if (e+1) % checkpoint_freq == 0:
-        torch.save(model.state_dict(), "output/{}/state_dict/network_{}.pth".format(output_folder, e))
+        torch.save(
+            model.state_dict(),
+            "output/{}/state_dict/network_{}.pth".format(output_folder, e))
