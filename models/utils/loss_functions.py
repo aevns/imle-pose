@@ -16,7 +16,7 @@ def gaussian_nll(pred, x):
     
     gt_pose = x['pose'][:,:,0:2]
     if x['pose'].shape[-1] == 3:
-        mask = (x['pose'][:,:,2] == 0)
+        mask = (x['pose'][:,:,2] != 0)
     else:
         mask = 1
 
