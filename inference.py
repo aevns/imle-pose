@@ -36,10 +36,10 @@ val_loader = torch.utils.data.DataLoader(
     num_workers=0,
     sampler=val_sampler)
 
-network = UNet(lf.gaussian_nll, val_data.image_size, 8).cuda()
+network = UNetPretrained(lf.gaussian_nll, val_data.image_size, 8).cuda()
 network.train(False)
 
-state_dict = torch.load("output/decay_0/state_dict/network_31.pth")
+state_dict = torch.load("output/decay_2/state_dict/network_70.pth")
 network.load_state_dict(state_dict)
 network.training = False
 
@@ -65,7 +65,7 @@ r"""Plots skeleton pose on a matplotlib axis.
             Module: self
 """
 def plot_skeleton(ax, pose_2d, bones=val_data.skeleton, linewidth=2, linestyle='-', label=None, alpha=1):
-    cmap = plt.get_cmap('hsv')
+    cmap = plt.get_cmap('prism')
     for i, bone in enumerate(bones):
         a = 1
         if pose_2d.shape[1] == 3:
@@ -91,7 +91,7 @@ r"""Plots list of skeleton poses and image.
 def plotPosesOnImage(poses, img, ax=plt, labels=None):
     img_pil = torchvision.transforms.ToPILImage()(img[[2,1,0],:,:])
     img_size = torch.FloatTensor(img_pil.size)
-    linestyles = ['-', '--', '-.', ':']
+    linestyles = ['-', ':', '--', '-.']
     for i, p in enumerate(poses):
         pose_px = p
         plot_skeleton(ax, pose_px, linestyle=linestyles[i%len(linestyles)], label=labels[i])
@@ -150,7 +150,14 @@ pose_cpu = batch['pose'].cpu().detach()
 pred_cpu = preds.cpu().detach()
 heatmap_cpu = UNet.normalize(heatmaps).cpu().detach()
 
-bestpose = torch.argmin(lf.gaussian_entropy(predictions))
+#bestpose = torch.argmin(lf.gaussian_entropy(predictions))
+maxmode = torch.min(lf.gaussian_nll(predictions, predictions))
+probs = torch.zeros(samples, device="cuda:0")
+for i in range(0, samples):
+    pred_repeat = {
+        'pose': predictions['pose'][i].expand(samples, -1, -1)}
+    probs[i] = torch.sum(torch.exp(maxmode-lf.gaussian_nll(predictions, pred_repeat)))
+bestpose = torch.argmax(probs)
 
 # plot the ground truth and the predicted poses on top of the image
 plotPosesOnImage([pred_cpu[bestpose,:,0:2].detach(), pose_cpu[0]], val_data.denormalize(image_cpu[0]), ax=axes[0], labels=['prediction', 'ground truth label'])
@@ -159,7 +166,7 @@ axes[0].legend()
 
 # plot the predicted probability map and the predicted pose on top
 #plotPosesOnImage([pose_cpu[0]], heatmap2image(heatmap_cpu[0]).detach(), ax=axes[1], labels=['ground truth label'])
-plotMultiPosesOnImage(pred_cpu.detach(), heatmap2image(heatmap_cpu[0]).detach(), ax=axes[1], label='predictions')
+plotMultiPosesOnImage(pred_cpu.detach(), heatmap2image(heatmap_cpu[bestpose]).detach(), ax=axes[1], label='predictions')
 axes[1].set_title('Predicted probability map with predicted pose overlayed')
 axes[1].legend()
 
