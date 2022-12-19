@@ -20,10 +20,12 @@ def gaussian_nll(pred, x):
     gt_pose = x['pose'][:,:,0:2]
     if x['pose'].shape[-1] == 3:
         mask = (x['pose'][:,:,2] != 0)
-
-        label_loss = -torch.sum(torch.log(labeled[mask])) - torch.sum(torch.log((1 - labeled)[~mask]))
-        # for use with imprefect ground truth masking
-        #label_loss = -mask * torch.log(labeled / mask) - (1 - mask) * torch.log((1 - labeled) / (1 - mask))
+        label_loss = torch.log(1 - labeled)
+        label_loss[mask] = torch.log(labeled[mask])
+        label_loss = -torch.sum(label_loss, dim=-1)
+        # for use with imprefect ground truth labelling
+        #softmask = mask * 0.998 + 0.001
+        #label_loss = -torch.sum(softmask * torch.log(labeled / softmask) + (1 - softmask) * torch.log((1 - labeled) / (1 - softmask)), dim=-1)
     else:
         mask = 1
         label_loss = 0
@@ -31,6 +33,7 @@ def gaussian_nll(pred, x):
     dif = torch.reshape(gt_pose - pose, (pose.shape[0], pose.shape[1], pose.shape[2], 1))
     q = torch.matmul(torch.transpose(dif,-1,-2), torch.matmul(torch.inverse(cov_mat), dif))
     q = q.view(q.shape[0], q.shape[1])
+    net_loss = torch.sum(mask * (torch.log(torch.det(cov_mat)) + q)/2 + 1.8378770664093455, dim=(-1)) + label_loss
     return torch.sum(mask * (torch.log(torch.det(cov_mat)) + q)/2 + 1.8378770664093455, dim=(-1)) + label_loss
 
 def heatmap_target_mse(pred, x):
