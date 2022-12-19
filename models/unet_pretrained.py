@@ -106,7 +106,7 @@ class UNetPretrained(nn.Module):
             channels = floor(UNetPretrained.max_channels**(1 - i/self.n_stages)*UNetPretrained.min_channels**(i/self.n_stages))
             self.net = UNetStage(self.net, channels, channels)
         
-        self.final = nn.Conv2d(UNetPretrained.min_channels, 17, kernel_size=1, stride=1, padding=0)
+        self.final = nn.Conv2d(UNetPretrained.min_channels, 17, kernel_size=1, stride=1, padding=0, bias=True)
 
     def _initialize(self):
         for name, m in self.named_modules():
@@ -199,6 +199,6 @@ class UNetPretrained(nn.Module):
         x_var = 1/12 + torch.sum(h_norm * xn * xn, dim=(2,3))
         y_var = 1/12 + torch.sum(h_norm * yn * yn, dim=(2,3))
         xy_covar = torch.sum(h_norm * xn * yn, dim=(2,3))
-        presence_prob = 1 - 1 / (z*max_ + 1).view(n, c)
+        presence_prob = 1 - 1 / (z/(h*w)*max_ + 1).view(n, c)
 
         return torch.stack((x_means, y_means, x_var, y_var, xy_covar, presence_prob), -1)
