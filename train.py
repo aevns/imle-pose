@@ -111,7 +111,7 @@ val_loader = torch.utils.data.DataLoader(
     num_workers=0,
     sampler=val_sampler)
 
-model = network(loss_function, train_data.image_size, noise_length=noise_length).cuda()
+model = network(loss_function, train_data.image_size, noise_length=noise_length).cuda(0)
 
 if start_epoch > 0:
     state_dict = torch.load("output/{}/state_dict/network_{}.pth".format(output_folder, start_epoch - 1))
@@ -126,7 +126,7 @@ for e in range(start_epoch, end_epoch):
     train_loss = 0
     train_iter = iter(train_loader)
     for i in range(len(train_loader)):
-        batch = {k:v.cuda(non_blocking = True) for k, v in next(train_iter).items()}
+        batch = {k:v.cuda(0, non_blocking = True) for k, v in next(train_iter).items()}
         optimizer.zero_grad()
 
         if sample_method == "mixed":

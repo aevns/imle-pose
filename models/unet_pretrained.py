@@ -117,7 +117,7 @@ class UNetPretrained(nn.Module):
         out = self.preprocess(x['image'])
         out = self.net(out, z)
         out = self.final(out)
-        return {'pose': UNetPretrained.gaussian_fit(UNetPretrained.normalize(out)), 'heatmap': out}
+        return {'pose': UNetPretrained.gaussian_fit(out), 'heatmap': out}
     
     def get_sample(self, x):
         z = torch.randn((x['image'].shape[0], self.noise_length), device = x['image'].device)
@@ -180,30 +180,26 @@ class UNetPretrained(nn.Module):
                     stabilizer = torch.max(net_nll, nll)
                     net_nll = -torch.log(torch.exp(-net_nll + stabilizer) + torch.exp(-nll + stabilizer)) + stabilizer
             return net_nll
-    
-    def normalize(pred):
-        n, c, h, w = pred.shape
 
-        max_ = torch.max(torch.max(pred, dim=-1)[0], dim=-1, keepdim=True)[0].unsqueeze(-1)
+    def gaussian_fit(pred):
+        n, c, h, w = pred.shape
+        with torch.no_grad():
+            max_ = torch.max(torch.max(pred, dim=-1)[0], dim=-1, keepdim=True)[0].unsqueeze(-1)
         z = torch.sum(torch.exp(pred - max_), (2, 3)).view(n, c, 1, 1)
         h_norm = torch.exp(pred - max_) / z
 
-        return h_norm
-     
-    def gaussian_fit(pred):
-        n, c, h, w = pred.shape
+        x_vals = torch.linspace(0, w-1, w, device=h_norm.device).unsqueeze(0)
+        y_vals = torch.linspace(0, h-1, h, device=h_norm.device).unsqueeze(1)
 
-        x_vals = torch.linspace(0, w-1, w, device=pred.device).unsqueeze(0)
-        y_vals = torch.linspace(0, h-1, h, device=pred.device).unsqueeze(1)
-
-        x_means = torch.sum(pred * x_vals, dim = (2, 3))
-        y_means = torch.sum(pred * y_vals, dim = (2, 3))
+        x_means = torch.sum(h_norm * x_vals, dim = (2, 3))
+        y_means = torch.sum(h_norm * y_vals, dim = (2, 3))
         
         xn = (x_vals - x_means.view(n, c, 1, 1))
         yn = (y_vals - y_means.view(n, c, 1, 1))
 
-        x_var = 1/12 + torch.sum(pred * xn * xn, dim=(2,3))
-        y_var = 1/12 + torch.sum(pred * yn * yn, dim=(2,3))
-        xy_covar = torch.sum(pred * xn * yn, dim=(2,3))
+        x_var = 1/12 + torch.sum(h_norm * xn * xn, dim=(2,3))
+        y_var = 1/12 + torch.sum(h_norm * yn * yn, dim=(2,3))
+        xy_covar = torch.sum(h_norm * xn * yn, dim=(2,3))
+        presence_prob = 1 - 1 / (z*max_ + 1).view(n, c)
 
-        return torch.stack((x_means, y_means, x_var, y_var, xy_covar), -1)
+        return torch.stack((x_means, y_means, x_var, y_var, xy_covar, presence_prob), -1)
