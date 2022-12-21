@@ -188,4 +188,4 @@ class UNetLarge(UNet):
     max_channels = 256
 
     def __init__(self, loss_function, input_size, noise_length = 32, n_stages = None):
-        super(UNet, self).__init__(loss_function, input_size, noise_length, n_stages)
+        super(UNetLarge, self).__init__(loss_function, input_size, noise_length, n_stages)
