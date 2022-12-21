@@ -29,6 +29,9 @@ def gaussian_nll(pred, x):
         # for use with imprefect ground truth labelling
         #softmask = mask * 0.998 + 0.001
         #label_loss = -torch.sum(softmask * torch.log(labeled / softmask) + (1 - softmask) * torch.log((1 - labeled) / (1 - softmask)), dim=-1)
+    elif x['pose'].shape[-1] == 6:
+        mask = x['pose'][:,:,5]
+        label_loss = -torch.sum(mask * torch.log(labeled / mask) + (1 - mask) * torch.log((1 - labeled) / (1 - mask)), dim=-1)
     else:
         mask = 1
         label_loss = 0

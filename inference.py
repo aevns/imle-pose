@@ -39,7 +39,7 @@ val_loader = torch.utils.data.DataLoader(
 network = UNet(lf.gaussian_nll, val_data.image_size, 8).cuda()
 network.train(False)
 
-state_dict = torch.load("output/label_0/state_dict/network_61.pth")
+state_dict = torch.load("output/label_0/state_dict/network_86.pth")
 network.load_state_dict(state_dict)
 network.training = False
 
@@ -180,7 +180,6 @@ for i in range(0, samples):
         'pose': predictions['pose'][i].expand(samples, -1, -1)}
     probs[i] = torch.sum(torch.exp(maxmode-lf.gaussian_nll(predictions, pred_repeat)))
 bestpose = torch.argmax(probs)
-#bestpose = torch.argmin(lf.gaussian_entropy(predictions))
 #bestpose = 0
 
 # plot the ground truth and the predicted poses on top of the image
