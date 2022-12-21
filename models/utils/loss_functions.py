@@ -6,11 +6,14 @@ import torch.nn as nn
 def gaussian_entropy(pred):
     cov_idx = torch.tensor([[2,4],[4,3]])
     cov_mat = pred['pose'][:,:,cov_idx]
-
-    return torch.sum(torch.log(torch.det(cov_mat))/2 + 2.8378770664093455, dim=(-1))
+    if pred['pose'].shape[2] == 6:
+        label_preds = pred['pose'][:,:,5]
+    label_entropy = -label_preds * torch.log(label_preds) - (1 - label_preds) * torch.log(1 - label_preds)
+    asdf = torch.log(torch.det(cov_mat))/2
+    entropy = label_preds * (torch.log(torch.det(cov_mat))/2 + 2.8378770664093455 - torch.log(label_preds)) + (1 - label_preds) * (- torch.log(1 - label_preds))
+    return torch.sum(entropy, dim=(-1))
 
 def gaussian_nll(pred, x):
-
     
     pose = pred['pose'][:,:,0:2]
     cov_idx = torch.tensor([[2,4],[4,3]])

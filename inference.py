@@ -36,10 +36,10 @@ val_loader = torch.utils.data.DataLoader(
     num_workers=0,
     sampler=val_sampler)
 
-network = UNetPretrained(lf.gaussian_nll, val_data.image_size, 8).cuda()
+network = UNet(lf.gaussian_nll, val_data.image_size, 8).cuda()
 network.train(False)
 
-state_dict = torch.load("output/decay_2/state_dict/network_70.pth")
+state_dict = torch.load("output/label_0/state_dict/network_61.pth")
 network.load_state_dict(state_dict)
 network.training = False
 
@@ -54,6 +54,16 @@ with torch.no_grad():
     predictions = network.get_sample(batch_repeat)
 
 # plotting utility functions
+
+cmap = plt.get_cmap('prism')
+joint_names = val_data.keypoints
+bone_indices = val_data.skeleton
+joint_colors = torch.zeros((len(joint_names), 3))
+bone_colors = torch.zeros((len(bone_indices), 3))
+for i in range(0, len(joint_names)):
+    joint_colors[i] = torch.tensor(cmap(i * cmap.N // len(joint_names))[:3])
+for j in range(0, len(bone_colors)):
+    bone_colors[j] = (joint_colors[bone_indices[j,0]-1] + joint_colors[bone_indices[j,1]-1]) / 2
 
 r"""Plots skeleton pose on a matplotlib axis.
 
@@ -70,7 +80,9 @@ def plot_skeleton(ax, pose_2d, bones=val_data.skeleton, linewidth=2, linestyle='
         a = 1
         if pose_2d.shape[1] == 3:
             a = pose_2d[bone[0]-1][2].item() * pose_2d[bone[1]-1][2].item() > 0
-        color = cmap((bone[1]-1) * cmap.N // len(val_data.keypoints)) # color according to second joint index
+        elif pose_2d.shape[1] == 6:
+            a = min(pose_2d[bone[0]-1][5].item(), pose_2d[bone[1]-1][5].item())
+        color = bone_colors[i].tolist()
         if i!=0:
             label=None
         ax.plot(
@@ -89,7 +101,7 @@ r"""Plots list of skeleton poses and image.
             Module: self
 """
 def plotPosesOnImage(poses, img, ax=plt, labels=None):
-    img_pil = torchvision.transforms.ToPILImage()(img[[2,1,0],:,:])
+    img_pil = torchvision.transforms.ToPILImage()(img)
     img_size = torch.FloatTensor(img_pil.size)
     linestyles = ['-', ':', '--', '-.']
     for i, p in enumerate(poses):
@@ -98,11 +110,11 @@ def plotPosesOnImage(poses, img, ax=plt, labels=None):
     ax.imshow(img_pil)
 
 def plotMultiPosesOnImage(poses, img, ax=plt, label=None):
-    img_pil = torchvision.transforms.ToPILImage()(img[[2,1,0],:,:])
+    img_pil = torchvision.transforms.ToPILImage()(img)
     img_size = torch.FloatTensor(img_pil.size)
     for i, p in enumerate(poses):
         pose_px = p
-        plot_skeleton(ax, pose_px, linestyle='-', label=(label if i==0 else None), alpha=4/len(poses))
+        plot_skeleton(ax, pose_px, linestyle='-', label=(label if i==0 else None), alpha=10/len(poses))
     ax.imshow(img_pil)
 
 r"""Converts a multi channel heatmap to an RGB color representation for display.
@@ -114,17 +126,25 @@ r"""Converts a multi channel heatmap to an RGB color representation for display.
 """
 def heatmap2image(heatmap):
     C,H,W = heatmap.shape
-    cmap = plt.get_cmap('hsv')
     img = torch.FloatTensor(3,H,W).fill_(0)
+    
+    max_ = torch.max(torch.max(heatmap, dim=-1)[0], dim=-1, keepdim=True)[0].unsqueeze(-1)
+    z = torch.sum(torch.exp(heatmap - max_), (1, 2)).view(C, 1, 1)
+    h_norm = torch.exp(heatmap - max_) / z
+    presence_prob = 1 - 1 / (z/(H*W)*max_ + 1).view(C, 1, 1)
+    h_norm *= presence_prob / torch.max(presence_prob)
+
     for i in range(C):
-        color = torch.FloatTensor(cmap(i * cmap.N // C)[:3]).reshape([-1,1,1])
-        img = torch.max(img, color * heatmap[i]) # max in case of overlapping position of joints
+        color = joint_colors[i].reshape([-1,1,1])
+        img = torch.max(img, color * h_norm[i]) # max in case of overlapping position of joints
     # heatmap and probability maps might have small maximum value. Normalize per channel to make each of them visible
-    img_max, indices = torch.max(img,dim=-1,keepdim=True)
-    img_max, indices = torch.max(img_max,dim=-2,keepdim=True)
+    #img_max, indices = torch.max(img,dim=-1,keepdim=True)
+    #img_max, indices = torch.max(img_max,dim=-2,keepdim=True)
+    img_max = torch.max(img)
     return img/img_max
 
 def plot_pose_confidence(full_pose, ax=plt):
+    i=0
     for joint in full_pose:
         cov_idx = torch.tensor([[2,4],[4,3]])
         cov_mat = joint[cov_idx]
@@ -133,9 +153,12 @@ def plot_pose_confidence(full_pose, ax=plt):
         ellipse = Ellipse(xy=(joint[0], joint[1]),
                   width=lambda_[0]*2, height=lambda_[1]*2,
                   angle=np.rad2deg(np.arctan2(*v[:,0][::-1])),
-                  color='white')
+                  color=joint_colors[i].tolist(),
+                  alpha=joint[5].item(),
+                  lw=1)
         ellipse.set_facecolor('none')
         ax.add_artist(ellipse)
+        i+=1
     return None
 
 preds = predictions['pose']
@@ -148,9 +171,8 @@ image_cpu = batch['image'].cpu().detach()
 pose_cpu = batch['pose'].cpu().detach()
 
 pred_cpu = preds.cpu().detach()
-heatmap_cpu = UNet.normalize(heatmaps).cpu().detach()
+heatmap_cpu = heatmaps.cpu().detach()
 
-#bestpose = torch.argmin(lf.gaussian_entropy(predictions))
 maxmode = torch.min(lf.gaussian_nll(predictions, predictions))
 probs = torch.zeros(samples, device="cuda:0")
 for i in range(0, samples):
@@ -158,14 +180,15 @@ for i in range(0, samples):
         'pose': predictions['pose'][i].expand(samples, -1, -1)}
     probs[i] = torch.sum(torch.exp(maxmode-lf.gaussian_nll(predictions, pred_repeat)))
 bestpose = torch.argmax(probs)
+#bestpose = torch.argmin(lf.gaussian_entropy(predictions))
+#bestpose = 0
 
 # plot the ground truth and the predicted poses on top of the image
-plotPosesOnImage([pred_cpu[bestpose,:,0:2].detach(), pose_cpu[0]], val_data.denormalize(image_cpu[0]), ax=axes[0], labels=['prediction', 'ground truth label'])
+plotPosesOnImage([pred_cpu[bestpose].detach(), pose_cpu[0]], val_data.denormalize(image_cpu[0])[[2,1,0],:,:], ax=axes[0], labels=['prediction', 'ground truth label'])
 axes[0].set_title('Input image with predicted pose (solid) and GT pose (dashed)')
 axes[0].legend()
 
 # plot the predicted probability map and the predicted pose on top
-#plotPosesOnImage([pose_cpu[0]], heatmap2image(heatmap_cpu[0]).detach(), ax=axes[1], labels=['ground truth label'])
 plotMultiPosesOnImage(pred_cpu.detach(), heatmap2image(heatmap_cpu[bestpose]).detach(), ax=axes[1], label='predictions')
 axes[1].set_title('Predicted probability map with predicted pose overlayed')
 axes[1].legend()
