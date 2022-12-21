@@ -181,3 +181,11 @@ class UNet(nn.Module):
         presence_prob = 1 - 1 / (z/(h*w)*max_ + 1).view(n, c)
 
         return torch.stack((x_means, y_means, x_var, y_var, xy_covar, presence_prob), -1)
+
+class UNetLarge(UNet):
+    name = "unet"
+    min_channels = 32
+    max_channels = 256
+
+    def __init__(self, loss_function, input_size, noise_length = 32, n_stages = None):
+        super(UNet, self).__init__(loss_function, input_size, noise_length, n_stages)

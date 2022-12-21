@@ -11,6 +11,7 @@ import models.utils.loss_functions as lf
 from dataset import HDF5Sampler
 from dataset import HDF5Dataset
 from models.unet import UNet
+from models.unet import UNetLarge
 from models.unet_pretrained import UNetPretrained
 
 import wandb
@@ -59,6 +60,8 @@ if args.model == 'UNet':
     network = UNet
 elif args.model == 'UNetPretrained':
     network = UNetPretrained
+elif args.model == 'UNetLarge':
+    network = UNetLarge
 noise_length = 8
 
 samples = args.samples
