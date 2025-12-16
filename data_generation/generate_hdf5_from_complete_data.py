@@ -8,7 +8,7 @@ import cv2
 import h5py
 
 compression = "gzip"
-root = 'data/complete/'
+root = 'data/simple/'
 collections = ['train','val']
 max_chunk_size = 1024
 
@@ -37,6 +37,7 @@ for collection in collections:
     with h5py.File(root + collection + '3.hdf5', 'w') as write_file:
         count = len(file['annotations'])
         chunks = 1 + (count - 1)//max_chunk_size
+        max_chunk_size = min(max_chunk_size, count)
 
         write_file['keypoints'] = file['categories'][0]['keypoints']
         write_file['skeleton'] = file['categories'][0]['skeleton']

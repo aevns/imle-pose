@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "Python: Current File",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
@@ -14,7 +14,7 @@
         },
         {
             "name": "Python: Train",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "C:/Users/AE/Documents/GitHub/imle-pose/train.py",
             "console": "integratedTerminal",
@@ -24,11 +24,11 @@
                 "-m","UNet",
                 "-l","gaussian",
                 "-c","select",
-                "-sm","30",
+                "-sm","10",
                 "-ls","0",
                 "-as","0",
-                "-cp","400",
-                "-o","complete_0"]
+                "-cp","200",
+                "-o","gaussian_select_10"]
         }
     ]
 }

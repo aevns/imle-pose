@@ -19,36 +19,49 @@ from collections import defaultdict
 
 import models.utils.loss_functions as lf
 
+from dataset import HDF5Sampler
 from dataset import HDF5Dataset
 from models.unet import UNet
-from models.unet_vector import UNetVector
+#from models.unet_vector import UNetVector
 
 model = UNet
-model_name = "unet_heatmap_swaps"
-epoch = 36
+#model_name = "unet_heatmap_swaps"
+model_name = "stick_7"
+epoch = 399
 samples=1
-plot_variables = torch.tensor([[11,0],[14,0]])
+image_scale = 16
+plot_variables = torch.tensor([[8,0],[10,0]])
 
-val_data = HDF5Dataset("./data/stick/val.hdf5", 0, (64,48))
+val_data = HDF5Dataset("data/stick/val.hdf5", generate_heatmaps=True, device="cuda:0")
+
+val_sampler = HDF5Sampler(
+    data_source=val_data)
 
 val_loader = torch.utils.data.DataLoader(
     val_data,
-    batch_size=1,
+    batch_size = 1,
     num_workers=0,
-    pin_memory=False,
+    sampler=val_sampler,
+    pin_memory=True,
     shuffle=False,
-    drop_last=True
-)
+    drop_last=True)
 
-network = model(loss_function = lf.heatmap_target_mse).cuda()
+network = model(lf.heatmap_target_mse, val_data.image_size).cuda()
+input_size = network.input_size[1]
 
 state_dict = torch.load("./output/{}/state_dict/network_{}.pth".format(model_name, epoch))
 network.load_state_dict(state_dict)
 network.training = False
 
-val_iter = iter(val_loader)
-for i in range(1): # 87, 101
-    batch = next(val_iter)
+#val_iter = iter(val_loader)
+#for i in range(40): # 87, 101
+#    batch = next(val_iter)
+n = 40
+batch = {
+    'image': val_data.normalize(torch.tensor(val_data.hdf5['images'][n], dtype=torch.float, device=val_data.device))[None, :, :, :],
+    'pose': torch.tensor(val_data.hdf5['poses'][n], dtype=torch.float, device=val_data.device)[None, :, :],
+    'target': val_data._target_generator(torch.tensor(val_data.hdf5['poses'][n], dtype=torch.float, device=val_data.device)),
+    }
 
 #image_cpu = batch['image'][0].cpu().detach()
 heatmap_cpu = batch['target'][0].cpu().detach()
@@ -57,7 +70,7 @@ pose_cpu = batch['pose'][0].cpu().detach()
 img = torch.zeros((3,64,64))
 
 for i in range(samples):
-    predictions = network.sample(batch)
+    predictions = network.get_sample(batch)
     heatmap = predictions['heatmap'][0]
     heatmap_cpu = heatmap.cpu().detach()
     
@@ -72,15 +85,12 @@ img_pil = torchvision.transforms.ToPILImage()(img)
 
 fig=plt.figure(figsize=(16, 9), dpi= 80, facecolor='w', edgecolor='k')
 axes=fig.subplots(1,1)
-axes.imshow(img_pil)
-axes.set_xlabel("Position of joint {}".format(plot_variables[0]))
-axes.set_ylabel("Position of joint {}".format(plot_variables[1]))
-
-axes.plot([0,64], [0,64])
+axes.imshow(img_pil, extent=(0, input_size, input_size, 0))
+#axes.set_xlabel("Position of joint {}".format(plot_variables[0]))
+#axes.set_ylabel("Position of joint {}".format(plot_variables[1]))
+axes.set_xlabel("Horizontal Position of Left Elbow (px)")
+axes.set_ylabel("Horizontal Position of Left Wrist (px)")
 axes.plot(pose_cpu[plot_variables[0,0],plot_variables[0,1]], pose_cpu[plot_variables[1,0],plot_variables[1,1]], marker="o")
-axes.xaxis.set_major_formatter(
-    plt.FuncFormatter(lambda x, pos: x*8))
-axes.yaxis.set_major_formatter(
-    plt.FuncFormatter(lambda y, pos: y*8))
+
 plt.show()
 print('done')

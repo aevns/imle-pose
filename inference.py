@@ -23,13 +23,14 @@ from models.unet import UNet
 from models.unet_pretrained import UNetPretrained
 
 val_data = HDF5Dataset(
-    "data/complete/compressed/val.hdf5",
+    #"data/complete/compressed/val.hdf5",
+    "data/stick/val.hdf5",
     generate_heatmaps=False,
     device="cuda:0")
 
 val_sampler = HDF5Sampler(
     data_source=val_data)
-    
+
 val_loader = torch.utils.data.DataLoader(
     val_data,
     batch_size = 1,
@@ -39,7 +40,8 @@ val_loader = torch.utils.data.DataLoader(
 network = UNet(lf.gaussian_nll, val_data.image_size, 8).cuda()
 network.train(False)
 
-state_dict = torch.load("output/label_0/state_dict/network_86.pth")
+#state_dict = torch.load("output/label_0/state_dict/network_86.pth")
+state_dict = torch.load("output/stick_1/state_dict/network_399.pth")
 network.load_state_dict(state_dict)
 network.training = False
 
@@ -81,7 +83,7 @@ def plot_skeleton(ax, pose_2d, bones=val_data.skeleton, linewidth=2, linestyle='
         if pose_2d.shape[1] == 3:
             a = pose_2d[bone[0]-1][2].item() * pose_2d[bone[1]-1][2].item() > 0
         elif pose_2d.shape[1] == 6:
-            a = min(pose_2d[bone[0]-1][5].item(), pose_2d[bone[1]-1][5].item())
+            a = 1 #min(pose_2d[bone[0]-1][5].item(), pose_2d[bone[1]-1][5].item())
         color = bone_colors[i].tolist()
         if i!=0:
             label=None
@@ -114,7 +116,7 @@ def plotMultiPosesOnImage(poses, img, ax=plt, label=None):
     img_size = torch.FloatTensor(img_pil.size)
     for i, p in enumerate(poses):
         pose_px = p
-        plot_skeleton(ax, pose_px, linestyle='-', label=(label if i==0 else None), alpha=10/len(poses))
+        plot_skeleton(ax, pose_px, linestyle='-', label=(label if i==0 else None), alpha=3/len(poses))
     ax.imshow(img_pil)
 
 r"""Converts a multi channel heatmap to an RGB color representation for display.
@@ -152,7 +154,7 @@ def plot_pose_confidence(full_pose, ax=plt):
         lambda_ = np.sqrt(lambda_)
         ellipse = Ellipse(xy=(joint[0], joint[1]),
                   width=lambda_[0]*2, height=lambda_[1]*2,
-                  angle=np.rad2deg(np.arctan2(*v[:,0][::-1])),
+                  angle=np.rad2deg(np.arctan2(*(v[:,0].flip(0)))),
                   color=joint_colors[i].tolist(),
                   alpha=joint[5].item(),
                   lw=1)

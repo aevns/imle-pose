@@ -170,7 +170,7 @@ for e in range(start_epoch, end_epoch):
         "training loss": train_loss / len(train_loader),
         "validation loss": val_loss / len(val_loader),
     })
-
+    print("epoch:", e, "training loss:", train_loss / len(train_loader), "validation loss:", val_loss / len(val_loader))
     if (e+1) % checkpoint_freq == 0:
         torch.save(
             model.state_dict(),

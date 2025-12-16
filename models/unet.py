@@ -96,7 +96,7 @@ class UNet(nn.Module):
         out = self.initial(x['image'])
         out = self.net(out, z)
         out = self.final(out)
-        return {'pose': UNet.gaussian_fit(out), 'heatmap': out}
+        return {'pose': self.gaussian_fit(out), 'heatmap': out}
     
     def get_sample(self, x):
         z = torch.randn((x['image'].shape[0], self.noise_length), device = x['image'].device)
@@ -148,7 +148,7 @@ class UNet(nn.Module):
             return net_nll
 
     def mixed_sample_loss(self, x, n):
-        with torch.no_grad():  
+        with torch.no_grad():
             for i in range(n):
                 z = torch.randn((x['image'].shape[0], self.noise_length), device = x['image'].device)
                 pred = self.forward(x, z)
@@ -160,7 +160,7 @@ class UNet(nn.Module):
                     net_nll = -torch.log(torch.exp(-net_nll + stabilizer) + torch.exp(-nll + stabilizer)) + stabilizer
             return net_nll
 
-    def gaussian_fit(pred):
+    def gaussian_fit(self, pred):
         n, c, h, w = pred.shape
         max_ = torch.max(torch.max(pred, dim=-1)[0], dim=-1, keepdim=True)[0].unsqueeze(-1)
         exp_max_ = torch.exp(max_ - h - w)
