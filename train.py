@@ -74,6 +74,9 @@ elif args.loss == 'mse':
 elif args.loss == 'dkl':
     loss_function = lf.heatmap_target_dkl
     generate_heatmaps = True
+elif args.loss == 'log_dkl':
+    loss_function = lf.heatmap_log_target_dkl
+    generate_heatmaps = True
 
 sample_method = args.combine
 

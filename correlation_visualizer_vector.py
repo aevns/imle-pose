@@ -24,8 +24,8 @@ from dataset import HDF5Dataset
 from models.unet import UNet
 
 model = UNet
-model_name = "old/"
-epoch = 12
+model_name = "simple_full_0"
+epoch = 1500
 samples=100
 image_scale = 16
 plot_variables = torch.tensor([[11,0],[14,0]])
