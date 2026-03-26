@@ -111,29 +111,6 @@ class HDF5Dataset(torch.utils.data.Dataset):
 
         return torch.tensor(target, device=self.device), np.expand_dims(target_weight, -1)
     
-    # Normalized log-probability gaussian kernel
-    def _log_target_generator(self, joints_2d):
-        if not self.generate_heatmaps:
-            return 0, 0
-
-        H, W = self._heatmap_size
-        num_joints = len(self.keypoints)
-        target_weight = np.ones((num_joints, 1), dtype=np.float32)
-        target = np.zeros((num_joints, self._heatmap_size[0], self._heatmap_size[1]),
-                            dtype=np.float32)
-        target -= np.log(self._heatmap_size[0] * self._heatmap_size[1])
-
-        x = np.arange(0, W, 1, dtype=np.float32)
-        y = np.arange(0, H, 1, dtype=np.float32)[:, None]
-        for k in range(K):
-            # skip unlabled keypoints
-            if keypoints_visible[0, k] >= 0.5:
-                heatmaps[k] = -((x - keypoints[0, k][1]/ self.scale_factor[1])**2 + (y - keypoints[0, k][0] / self.scale_factor[0])**2) / (2 * self.sigma**2)
-            heatmaps[k] -= logsumexp(heatmaps[k])
-        encoded = dict(heatmaps=heatmaps, keypoint_weights=keypoint_weights)
-
-        return torch.tensor(target, device=self.device), np.expand_dims(target_weight, -1)
-    
     def __len__(self):
         return len(self.hdf5['poses'])
     

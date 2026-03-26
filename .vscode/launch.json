@@ -20,15 +20,15 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args":[
-                "-d","data/complete/compressed/",
-                "-m","UNet",
-                "-l","gaussian",
-                "-c","select",
-                "-sm","10",
-                "-ls","0",
-                "-as","0",
-                "-cp","200",
-                "-o","gaussian_select_10"]
+                "-d","data/stick/",
+                "--model","UNet",
+                "--loss","dkl",
+                "--combine","mixed",
+                "--samples","10",
+                "--legswap","0",
+                "--armswap","0",
+                "--checkpoints","200",
+                "--output","gaussian_select_10"]
         }
     ]
 }

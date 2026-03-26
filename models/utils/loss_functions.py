@@ -65,22 +65,17 @@ def heatmap_target_prob_prod(pred, x):
     return torch.prod(torch.sum(target * torch.max(pred['heatmap'], eps), dim=(-2,-1)), dim=-1)
 
 def heatmap_log_target_dkl(pred, x):
-    B, K, H, W = pred['heatmap'].shape
-    target = x['target']
-    dist = torch.log_softmax(pred['heatmap'].view(B, K, H * W), dim=(2)).view(B, K, H, W)
-    loss = F.kl_div(dist, target, log_target=True, reduction='none').sum(dim=(2, 3))
+    if pred['heatmap'].dim() == 4:
+        B, K, H, W = pred['heatmap'].shape
+        dist = torch.log_softmax(pred['heatmap'].view(B, K, H * W), dim=(-1)).view(B, K, H, W)
+    elif pred['heatmap'].dim() == 3:
+        K, H, W = pred['heatmap'].shape
+        dist = torch.log_softmax(pred['heatmap'].view(K, H * W), dim=(-1)).view(K, H, W)
+    target = x['log_target']
+    loss = F.kl_div(dist, target, log_target=True, reduction='none').sum(dim=(-2, -1))
     loss = torch.sum(loss, dim=(-1))
-    return torch.sum(loss)
-
-def heatmap_label_log_target_dkl(pred, x):
-    B, K, H, W = pred['heatmap'].shape
-    target = x['target']
-    mask = x['mask']
-    dist = torch.log_softmax(pred['heatmap'].view(B, K, H * W), dim=(2)).view(B, K, H, W)
-    loss = F.kl_div(dist, target, log_target=True, reduction='none').sum(dim=(2, 3))
-    loss = torch.sum(loss, dim=(-1))
-    labeled =  1 - 1 / (torch.sum(torch.exp(pred), dim=(2, 3)) + 1)
-    label_loss = -torch.log(1 - labeled * (1 - 1E-4))
-    label_loss[mask] = -torch.log(1E-4 + labeled[mask] * (1 - 1E-4))
-    loss += torch.sum(label_loss, dim=(-1))
-    return torch.sum(loss)
+    # label loss is used to ensure outputs do not get scaled arbitrarily
+    # currently assumes all joints are guaranteed to be labeled (labeled should be 1)
+    #labeled =  1 - 1 / (torch.sum(torch.exp(pred['heatmap']), dim=(-2, -1)) + 1)
+    #label_loss = -torch.log(1E-4 + labeled * (1 - 1E-4))
+    return torch.sum(loss)# + torch.sum(label_loss)

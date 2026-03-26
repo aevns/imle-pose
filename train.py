@@ -14,9 +14,9 @@ from models.unet import UNet
 from models.unet import UNetLarge
 from models.unet_pretrained import UNetPretrained
 
-import wandb
+#import wandb
 
-wandb.login(key='9a92298caf7b15ab1719f839763164b8932817a9')
+#wandb.login(key='9a92298caf7b15ab1719f839763164b8932817a9')
 
 print(torch.cuda.get_arch_list())
 print([torch.cuda.device(i) for i in range(torch.cuda.device_count())])
@@ -37,6 +37,7 @@ parser.add_argument('--armswaps', '-as', nargs='?', default=0, type=float)
 parser.add_argument('--legswaps', '-ls', nargs='?', default=0, type=float)
 parser.add_argument('--output', '-o', nargs='?', default='unnamed')
 args = parser.parse_args()
+print(args)
 torch.autograd.set_detect_anomaly(False)
 
 start_epoch = args.start
@@ -52,9 +53,9 @@ val_data_filename = args.dataroot + "val.hdf5"
 leg_swaps = args.legswaps
 arm_swaps = args.armswaps
 
-wandb.init(
-    project="imle-pose",
-    config = {'args': args})
+#wandb.init(
+#    project="imle-pose",
+#   config = {'args': args})
 
 if args.model == 'UNet':
     network = UNet
@@ -122,7 +123,7 @@ model = network(loss_function, train_data.image_size, noise_length=noise_length)
 if start_epoch > 0:
     state_dict = torch.load("output/{}/state_dict/network_{}.pth".format(output_folder, start_epoch - 1))
     model.load_state_dict(state_dict)
-wandb.watch(model, log_freq=len(train_loader)//batch_size)
+#wandb.watch(model, log_freq=len(train_loader)//batch_size)
 
 optimizer = torch.optim.Adam(model.parameters(), lr = learning_rate, weight_decay=weight_decay)
 for e in range(start_epoch, end_epoch):
@@ -168,11 +169,11 @@ for e in range(start_epoch, end_epoch):
             val_loss += loss.item()
     
     #LOGGING
-    wandb.log({
-        "epoch": e,
-        "training loss": train_loss / len(train_loader),
-        "validation loss": val_loss / len(val_loader),
-    })
+    #wandb.log({
+    #    "epoch": e,
+    #    "training loss": train_loss / len(train_loader),
+    #    "validation loss": val_loss / len(val_loader),
+    #})
     print("epoch:", e, "training loss:", train_loss / len(train_loader), "validation loss:", val_loss / len(val_loader))
     if (e+1) % checkpoint_freq == 0:
         torch.save(
