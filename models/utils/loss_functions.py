@@ -16,7 +16,7 @@ def gaussian_entropy(pred):
 
 def label_loss(pred, x):
     labeled = pred['pose'][:,:,5]
-    return torch.sum((labeled - 0.5)**2, dim=(-1))
+    return torch.sum((labeled - 0.999)**2, dim=(-1))
 
 def gaussian_nll(pred, x):
     
@@ -29,15 +29,19 @@ def gaussian_nll(pred, x):
     dif = torch.reshape(gt_pose - pose, (pose.shape[0], pose.shape[1], pose.shape[2], 1))
     q = torch.matmul(torch.transpose(dif,-1,-2), torch.matmul(torch.inverse(cov_mat), dif))
     q = q.view(q.shape[0], q.shape[1])
+    # constant term for log probability density per square pixel: ln(2 pi) = 1.8378770664093455
     return torch.sum((torch.log(torch.det(cov_mat)) + q)/2 + 1.8378770664093455, dim=(-1))
 
 def heatmap_target_mse(pred, x):
-    return torch.mean(nn.MSELoss(reduction='none')(pred['heatmap'], x['target']), dim=(-3,-2,-1))
+    return torch.sum(nn.MSELoss(reduction='none')(pred['heatmap'], x['target']), dim=(-3,-2,-1))
 
 def heatmap_target_dkl(pred, x):
-    eps = torch.tensor([1E-8], device=x['target'].device)
-    target = torch.max(x['target'] / torch.sum(x['target'], dim=(-3,-2,-1)).view(-1,1,1,1), eps)
-    return torch.sum(target * torch.log(torch.max(pred['heatmap'], eps) / target), dim=(-3,-2,-1))
+    n, c, h, w = pred['heatmap'].shape
+    log_pred = pred['heatmap'] - torch.logsumexp(pred['heatmap'], dim=(-2, -1), keepdim=True)
+
+    target = x['target'] / torch.sum(x['target'], dim=(-2,-1)).view(n, c, 1, 1)
+    target = (1 - 1E-4) * target + 1E-4 / (h * w)
+    return torch.sum(nn.KLDivLoss(reduction='none')(log_pred, target), dim=(-3,-2,-1))
 
 def heatmap_target_prob_prod(pred, x):
     eps = torch.tensor([1E-8], device=x['target'].device)

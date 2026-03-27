@@ -24,19 +24,19 @@ from models.unet_pretrained import UNetPretrained
 
 data_file = "data/stick/val.hdf5"
 network = UNetLarge
-folder_name = "gauss_m4L"
-checkpoint = "network_599.pth"
-samples = 1
+folder_name = "dkl_select_test"
+checkpoint = "network_29.pth"
+samples = 20
 leg_swaps = 0.5
 arm_swaps = 0.1
-loss_function = lf.gaussian_nll
-sample_method = "mixed"
+loss_function = lf.heatmap_target_dkl
+sample_method = "select"
 
 val_data = HDF5Dataset(
     data_file,
     leg_swaps = 0.5,
     arm_swaps = 0.1,
-    generate_heatmaps=False,
+    generate_heatmaps=True,
     device="cuda:0")
 
 val_sampler = HDF5Sampler(
@@ -45,23 +45,20 @@ val_sampler = HDF5Sampler(
 val_loader = torch.utils.data.DataLoader(
     val_data,
     batch_size = 1,
-    num_workers=0,
+    num_workers = 0,
     sampler=val_sampler)
 
 model = network(loss_function, val_data.image_size, 8).cuda()
 model.train(False)
 
-state_dict = torch.load("output/{}/{}".format(folder_name, checkpoint))
+state_dict = torch.load("output/{}/state_dict/{}".format(folder_name, checkpoint))
 model.load_state_dict(state_dict)
 model.training = False
 
 with torch.no_grad():
     val_iter = iter(val_loader)
     batch = next(val_iter)
-    batch_repeat = {
-        'image': batch['image'].expand(samples, -1, -1, -1),
-        'pose': batch['pose'].expand(samples, -1, -1),
-        'target': batch['target'].expand(samples)}
+    batch_repeat = {'image': batch['image'].expand(samples, -1, -1, -1)}
     predictions = model.get_sample(batch_repeat)
 
 # plotting utility functions
@@ -142,8 +139,6 @@ def heatmap2image(heatmap):
     max_ = torch.max(torch.max(heatmap, dim=-1)[0], dim=-1, keepdim=True)[0].unsqueeze(-1)
     z = torch.sum(torch.exp(heatmap - max_), (1, 2)).view(C, 1, 1)
     h_norm = torch.exp(heatmap - max_) / z
-    presence_prob = 1 - 1 / (z/(H*W)*max_ + 1).view(C, 1, 1)
-    h_norm *= presence_prob / torch.max(presence_prob)
 
     for i in range(C):
         color = joint_colors[i].reshape([-1,1,1])

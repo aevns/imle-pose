@@ -71,11 +71,11 @@ if args.loss == 'mse':
     val_loss_fn = lf.heatmap_target_mse
     generate_heatmaps = True
 elif args.loss == 'gaussian':
-    train_loss_fn = lambda pred, x : lf.gaussian_nll(pred, x) + 0.001 * lf.label_loss(pred, x)
+    train_loss_fn = lambda pred, x : lf.gaussian_nll(pred, x) + 1E-5 * lf.label_loss(pred, x)
     val_loss_fn = lf.gaussian_nll
     generate_heatmaps = False
 elif args.loss == 'dkl':
-    train_loss_fn = lambda pred, x : lf.heatmap_target_dkl(pred, x) + 0.001 * lf.label_loss(pred, x)
+    train_loss_fn = lambda pred, x : lf.heatmap_target_dkl(pred, x) + 1E-5 * lf.label_loss(pred, x)
     val_loss_fn = lf.heatmap_target_dkl
     generate_heatmaps = True
 

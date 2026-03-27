@@ -23,12 +23,12 @@
                 "-d","data/stick/",
                 "--model","UNetLarge",
                 "--loss","gaussian",
-                "--combine","mixed",
+                "--combine","select",
                 "--samples","8",
                 "--legswap","0.5",
                 "--armswap","0.1",
-                "--checkpoints","3",
-                "--output","gaussian_mix_test"]
+                "--checkpoints","40",
+                "--output","output/gauss_select_test"]
         },
         {
             "name": "Validate",
@@ -41,8 +41,8 @@
                 "-d","data/stick/",
                 "--model","UNetLarge",
                 "--loss","gaussian",
-                "--combine","mixed",
-                "--samples","10",
+                "--combine","select",
+                "--samples","8",
                 "--legswap","0.5",
                 "--armswap","0.1",
                 "--checkpoint","599"]

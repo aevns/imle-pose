@@ -17,9 +17,9 @@ batch_size = 32
 
 network = UNetLarge
 folder_names = [
-    "mse_1L", "mse_m4L", "mse_m8L", "mse_s4L", "mse_s8L",
-    "gauss_1L", "gauss_m4L", "gauss_m8L", "gauss_s4L", "gauss_s8L",
-    "dkl_1L", "dkl_m4L", "dkl_m8L", "dkl_s4L", "dkl_s8L"
+    "mse_1", "mse_m4", "mse_m8", "mse_s4", "mse_s8",
+    "gauss_1", "gauss_m4", "gauss_m8", "gauss_s4", "gauss_s8",
+    "dkl_1", "dkl_m4", "dkl_m8", "dkl_s4", "dkl_s8"
 ]
 checkpoint = "network_599.pth"
 samples = 40
@@ -52,7 +52,7 @@ for m in range(len(folder_names)):
     model.training = False
     loss_history = []
 
-    dir = "output/{}/".format(folder_names[m])
+    dir = "output/{}/state_dict/".format(folder_names[m])
     files = os.listdir(dir)
     files.sort(key = lambda x: int(re.search(r'\d+', x).group()))
 
