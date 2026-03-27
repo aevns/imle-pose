@@ -24,7 +24,7 @@ print([torch.cuda.device(i) for i in range(torch.cuda.device_count())])
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataroot', '-d')
 parser.add_argument('--learningrate', '-lr', nargs='?', default=0.001, type=float)
-parser.add_argument('--weightdecay', '-wd', nargs='?', default=0, type=float)
+parser.add_argument('--weightdecay', '-wd', nargs='?', default=0.01, type=float)
 parser.add_argument('--batchsize', '-b', nargs='?', default=64, type=int)
 parser.add_argument('--model', '-m', nargs='?', default='UNet')
 parser.add_argument('--start', '-s', nargs='?', default=0, type=int)
@@ -125,7 +125,7 @@ if start_epoch > 0:
     model.load_state_dict(state_dict)
 #wandb.watch(model, log_freq=len(train_loader)//batch_size)
 
-optimizer = torch.optim.Adam(model.parameters(), lr = learning_rate, weight_decay=weight_decay)
+optimizer = torch.optim.AdamW(model.parameters(), lr = learning_rate, weight_decay=weight_decay)
 for e in range(start_epoch, end_epoch):
 
     # TRAINING
