@@ -13,7 +13,7 @@
             "justMyCode": true
         },
         {
-            "name": "Python: Train",
+            "name": "Train",
             "type": "debugpy",
             "request": "launch",
             "program": "C:/Users/AE/Documents/GitHub/imle-pose/train.py",
@@ -27,8 +27,25 @@
                 "--samples","10",
                 "--legswap","0",
                 "--armswap","0",
-                "--checkpoints","200",
-                "--output","gaussian_select_10"]
+                "--checkpoints","3",
+                "--output","dkl_mix_test"]
+        },
+        {
+            "name": "Validate",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "C:/Users/AE/Documents/GitHub/imle-pose/validate.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args":[
+                "-d","data/stick/",
+                "--model","UNetLarge",
+                "--loss","dkl",
+                "--combine","mixed",
+                "--samples","10",
+                "--legswap","0.5",
+                "--armswap","0.1",
+                "--checkpoint","599"]
         }
     ]
 }

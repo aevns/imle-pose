@@ -83,8 +83,8 @@ sample_method = args.combine
 
 output_folder = args.output
 
-os.makedirs(os.path.dirname("output/{}/state_dict/".format(output_folder)), exist_ok=True)
-os.makedirs(os.path.dirname("output/{}/training_log/".format(output_folder)), exist_ok=True)
+os.makedirs(os.path.dirname("{}/state_dict/".format(output_folder)), exist_ok=True)
+os.makedirs(os.path.dirname("{}/training_log/".format(output_folder)), exist_ok=True)
 
 train_data = HDF5Dataset(
     train_data_filename,
@@ -178,4 +178,4 @@ for e in range(start_epoch, end_epoch):
     if (e+1) % checkpoint_freq == 0:
         torch.save(
             model.state_dict(),
-            "output/{}/state_dict/network_{}.pth".format(output_folder, e))
+            "{}/state_dict/network_{}.pth".format(output_folder, e))

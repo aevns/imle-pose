@@ -19,12 +19,23 @@ import models.utils.loss_functions as lf
 
 from dataset import HDF5Sampler
 from dataset import HDF5Dataset
-from models.unet import UNet
+from models.unet import UNet, UNetLarge
 from models.unet_pretrained import UNetPretrained
 
+data_file = "data/stick/val.hdf5"
+network = UNetLarge
+folder_name = "gauss_m4L"
+checkpoint = "network_599.pth"
+samples = 1
+leg_swaps = 0.5
+arm_swaps = 0.1
+loss_function = lf.gaussian_nll
+sample_method = "mixed"
+
 val_data = HDF5Dataset(
-    #"data/complete/compressed/val.hdf5",
-    "data/stick/val.hdf5",
+    data_file,
+    leg_swaps = 0.5,
+    arm_swaps = 0.1,
     generate_heatmaps=False,
     device="cuda:0")
 
@@ -37,23 +48,21 @@ val_loader = torch.utils.data.DataLoader(
     num_workers=0,
     sampler=val_sampler)
 
-network = UNet(lf.gaussian_nll, val_data.image_size, 8).cuda()
-network.train(False)
+model = network(loss_function, val_data.image_size, 8).cuda()
+model.train(False)
 
-#state_dict = torch.load("output/label_0/state_dict/network_86.pth")
-state_dict = torch.load("output/stick_1/state_dict/network_399.pth")
-network.load_state_dict(state_dict)
-network.training = False
+state_dict = torch.load("output/{}/{}".format(folder_name, checkpoint))
+model.load_state_dict(state_dict)
+model.training = False
 
 with torch.no_grad():
-    samples = 100
     val_iter = iter(val_loader)
     batch = next(val_iter)
     batch_repeat = {
         'image': batch['image'].expand(samples, -1, -1, -1),
         'pose': batch['pose'].expand(samples, -1, -1),
         'target': batch['target'].expand(samples)}
-    predictions = network.get_sample(batch_repeat)
+    predictions = model.get_sample(batch_repeat)
 
 # plotting utility functions
 
@@ -116,7 +125,7 @@ def plotMultiPosesOnImage(poses, img, ax=plt, label=None):
     img_size = torch.FloatTensor(img_pil.size)
     for i, p in enumerate(poses):
         pose_px = p
-        plot_skeleton(ax, pose_px, linestyle='-', label=(label if i==0 else None), alpha=3/len(poses))
+        plot_skeleton(ax, pose_px, linestyle='-', label=(label if i==0 else None), alpha=1/len(poses))
     ax.imshow(img_pil)
 
 r"""Converts a multi channel heatmap to an RGB color representation for display.
@@ -156,7 +165,7 @@ def plot_pose_confidence(full_pose, ax=plt):
                   width=lambda_[0]*2, height=lambda_[1]*2,
                   angle=np.rad2deg(np.arctan2(*(v[:,0].flip(0)))),
                   color=joint_colors[i].tolist(),
-                  alpha=joint[5].item(),
+                  alpha=1,#joint[5].item(),
                   lw=1)
         ellipse.set_facecolor('none')
         ax.add_artist(ellipse)
@@ -195,7 +204,7 @@ axes[1].set_title('Predicted probability map with predicted pose overlayed')
 axes[1].legend()
 
 plot_pose_confidence(pred_cpu[bestpose].detach(), axes[0])
-#plot_pose_confidence(pred_cpu[0].detach(), axes[1])
+plot_pose_confidence(pred_cpu[bestpose].detach(), axes[1])
 
 plt.show()
 image_modified = val_data.denormalize(image_cpu[0])
