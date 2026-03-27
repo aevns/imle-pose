@@ -16,7 +16,7 @@ def gaussian_entropy(pred):
 
 def label_loss(pred, x):
     labeled = pred['pose'][:,:,5]
-    return - 0.99 * torch.log(labeled / 0.99) - 0.01 * torch.log((1 - labeled)/0.01)
+    return torch.sum((labeled - 0.5)**2, dim=(-1))
 
 def gaussian_nll(pred, x):
     
