@@ -21,14 +21,14 @@
             "justMyCode": true,
             "args":[
                 "-d","data/stick/",
-                "--model","UNet",
-                "--loss","dkl",
+                "--model","UNetLarge",
+                "--loss","gaussian",
                 "--combine","mixed",
-                "--samples","10",
-                "--legswap","0",
-                "--armswap","0",
+                "--samples","8",
+                "--legswap","0.5",
+                "--armswap","0.1",
                 "--checkpoints","3",
-                "--output","dkl_mix_test"]
+                "--output","gaussian_mix_test"]
         },
         {
             "name": "Validate",
@@ -40,7 +40,7 @@
             "args":[
                 "-d","data/stick/",
                 "--model","UNetLarge",
-                "--loss","dkl",
+                "--loss","gaussian",
                 "--combine","mixed",
                 "--samples","10",
                 "--legswap","0.5",
