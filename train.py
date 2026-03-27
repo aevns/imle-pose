@@ -66,17 +66,17 @@ elif args.model == 'UNetLarge':
 noise_length = 8
 
 samples = args.samples
-if args.loss == 'gaussian':
-    loss_function = lf.gaussian_nll
+if args.loss == 'mse':
+    train_loss = lf.heatmap_target_mse
+    val_loss = lf.heatmap_target_mse
+    generate_heatmaps = True
+elif args.loss == 'gaussian':
+    train_loss = lambda pred, x : lf.gaussian_nll(pred, x) + 0.01 * lf.label_loss(pred, x)
+    val_loss = lf.gaussian_nll
     generate_heatmaps = False
-elif args.loss == 'mse':
-    loss_function = lf.heatmap_target_mse
-    generate_heatmaps = True
 elif args.loss == 'dkl':
-    loss_function = lf.heatmap_target_dkl
-    generate_heatmaps = True
-elif args.loss == 'log_dkl':
-    loss_function = lf.heatmap_log_target_dkl
+    train_loss = lambda pred, x : lf.heatmap_target_dkl(pred, x) + 0.01 * lf.label_loss(pred, x)
+    val_loss = lf.heatmap_target_dkl
     generate_heatmaps = True
 
 sample_method = args.combine
@@ -118,7 +118,7 @@ val_loader = torch.utils.data.DataLoader(
     num_workers=0,
     sampler=val_sampler)
 
-model = network(loss_function, train_data.image_size, noise_length=noise_length).cuda(0)
+model = network(train_loss, train_data.image_size, noise_length=noise_length).cuda(0)
 
 if start_epoch > 0:
     state_dict = torch.load("{}/state_dict/network_{}.pth".format(output_folder, start_epoch - 1))
@@ -130,6 +130,7 @@ for e in range(start_epoch, end_epoch):
 
     # TRAINING
     model.training = True
+    model.loss = train_loss
     train_loss = 0
     train_iter = iter(train_loader)
     for i in range(len(train_loader)):
@@ -151,6 +152,7 @@ for e in range(start_epoch, end_epoch):
     
     # VALIDAITON
     model.training = False
+    model.loss = val_loss
     with torch.no_grad():
         val_loss = 0
         val_iter = iter(val_loader)
