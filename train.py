@@ -121,7 +121,7 @@ val_loader = torch.utils.data.DataLoader(
 model = network(loss_function, train_data.image_size, noise_length=noise_length).cuda(0)
 
 if start_epoch > 0:
-    state_dict = torch.load("output/{}/state_dict/network_{}.pth".format(output_folder, start_epoch - 1))
+    state_dict = torch.load("{}/state_dict/network_{}.pth".format(output_folder, start_epoch - 1))
     model.load_state_dict(state_dict)
 #wandb.watch(model, log_freq=len(train_loader)//batch_size)
 
