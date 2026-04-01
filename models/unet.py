@@ -135,7 +135,7 @@ class UNet(nn.Module):
                         net_grad[name] = param.grad.detach().clone()
                     net_nll = nll
                 else:
-                    stabilizer = torch.max(net_nll, nll)
+                    stabilizer = torch.maximum(net_nll, nll)
                     for name, param in self.named_parameters():
                         net_grad[name] = (
                             (torch.exp(net_nll - stabilizer) * param.grad
@@ -156,7 +156,7 @@ class UNet(nn.Module):
                 if i==0:
                     net_nll = nll
                 else:
-                    stabilizer = torch.max(net_nll, nll)
+                    stabilizer = torch.maximum(net_nll, nll)
                     net_nll = -torch.log(torch.exp(-net_nll + stabilizer) + torch.exp(-nll + stabilizer)) + stabilizer
             return net_nll
 

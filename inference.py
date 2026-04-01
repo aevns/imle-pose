@@ -24,12 +24,12 @@ from models.unet_pretrained import UNetPretrained
 
 data_file = "data/stick/val.hdf5"
 network = UNetLarge
-folder_name = "dkl_select_test"
-checkpoint = "network_29.pth"
-samples = 20
+folder_name = "gauss_s8"
+checkpoint = "network_899.pth"
+samples = 100
 leg_swaps = 0.5
 arm_swaps = 0.1
-loss_function = lf.heatmap_target_dkl
+loss_function = lf.gaussian_nll
 sample_method = "select"
 
 val_data = HDF5Dataset(
@@ -190,13 +190,13 @@ bestpose = torch.argmax(probs)
 
 # plot the ground truth and the predicted poses on top of the image
 plotPosesOnImage([pred_cpu[bestpose].detach(), pose_cpu[0]], val_data.denormalize(image_cpu[0])[[2,1,0],:,:], ax=axes[0], labels=['prediction', 'ground truth label'])
-axes[0].set_title('Input image with predicted pose (solid) and GT pose (dashed)')
-axes[0].legend()
+#axes[0].set_title('Input image with predicted pose (solid) and GT pose (dashed)')
+#axes[0].legend(loc='lower left')
 
 # plot the predicted probability map and the predicted pose on top
 plotMultiPosesOnImage(pred_cpu.detach(), heatmap2image(heatmap_cpu[bestpose]).detach(), ax=axes[1], label='predictions')
-axes[1].set_title('Predicted probability map with predicted pose overlayed')
-axes[1].legend()
+#axes[1].set_title('Predicted probability map with predicted pose overlayed')
+#axes[1].legend(loc='lower left')
 
 plot_pose_confidence(pred_cpu[bestpose].detach(), axes[0])
 plot_pose_confidence(pred_cpu[bestpose].detach(), axes[1])

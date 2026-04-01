@@ -23,12 +23,12 @@
                 "-d","data/stick/",
                 "--model","UNetLarge",
                 "--loss","gaussian",
-                "--combine","select",
+                "--combine","mixed",
                 "--samples","8",
                 "--legswap","0.5",
                 "--armswap","0.1",
                 "--checkpoints","40",
-                "--output","output/gauss_select_test"]
+                "--output","output/gauss_mixed_test"]
         },
         {
             "name": "Validate",

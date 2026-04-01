@@ -88,15 +88,15 @@ os.makedirs(os.path.dirname("{}/training_log/".format(output_folder)), exist_ok=
 
 train_data = HDF5Dataset(
     train_data_filename,
-    leg_swaps,
-    arm_swaps,
+    leg_swaps=leg_swaps,
+    arm_swaps=arm_swaps,
     generate_heatmaps=generate_heatmaps,
     device="cuda:0")
 
 val_data = HDF5Dataset(
     val_data_filename,
-    leg_swaps,
-    arm_swaps,
+    leg_swaps=leg_swaps,
+    arm_swaps=arm_swaps,
     generate_heatmaps=generate_heatmaps,
     device="cuda:0")
 

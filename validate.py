@@ -17,28 +17,28 @@ batch_size = 32
 
 network = UNetLarge
 folder_names = [
-    "mse_1", "mse_m4", "mse_m8", "mse_s4", "mse_s8",
-    "gauss_1", "gauss_m4", "gauss_m8", "gauss_s4", "gauss_s8",
-    "dkl_1", "dkl_m4", "dkl_m8", "dkl_s4", "dkl_s8"
+    "mse_1", "mse_m4", "mse_m8", "mse_m16", "mse_s4", "mse_s8", "mse_s16",
+    "gauss_1", "gauss_m4", "gauss_m8", "gauss_m16", "gauss_s4", "gauss_s8", "gauss_s16",
+    "dkl_1", "dkl_m4", "dkl_m8", "dkl_m16", "dkl_s4", "dkl_s8", "dkl_s16"
 ]
-checkpoint = "network_599.pth"
+checkpoint = "network_899.pth"
 samples = 40
 leg_swaps = 0.5
 arm_swaps = 0.1
 loss_functions = [
-    lf.heatmap_target_mse, lf.heatmap_target_mse, lf.heatmap_target_mse, lf.heatmap_target_mse, lf.heatmap_target_mse,
-    lf.gaussian_nll, lf.gaussian_nll, lf.gaussian_nll, lf.gaussian_nll, lf.gaussian_nll,
-    lf.heatmap_target_dkl, lf.heatmap_target_dkl, lf.heatmap_target_dkl, lf.heatmap_target_dkl, lf.heatmap_target_dkl
+    lf.heatmap_target_mse, lf.heatmap_target_mse, lf.heatmap_target_mse, lf.heatmap_target_mse, lf.heatmap_target_mse, lf.heatmap_target_mse, lf.heatmap_target_mse,
+    lf.gaussian_nll, lf.gaussian_nll, lf.gaussian_nll, lf.gaussian_nll, lf.gaussian_nll, lf.gaussian_nll, lf.gaussian_nll,
+    lf.heatmap_target_dkl, lf.heatmap_target_dkl, lf.heatmap_target_dkl, lf.heatmap_target_dkl, lf.heatmap_target_dkl, lf.heatmap_target_dkl, lf.heatmap_target_dkl
 ]
 sample_methods = [
-    "constant", "mixed", "mixed", "select", "select",
-    "constant", "mixed", "mixed", "select", "select",
-    "constant", "mixed", "mixed", "select", "select"
+    "constant", "mixed", "mixed", "mixed", "mixed", "mixed", "mixed",
+    "constant", "mixed", "mixed", "mixed", "mixed", "mixed", "mixed",
+    "constant", "mixed", "mixed", "mixed", "mixed", "mixed", "mixed",
 ]
 generate_heatmaps = [
-    False, False, False, False, False,
-    True, True, True, True, True,
-    True, True, True, True, True
+    False, False, False, False, False, False, False,
+    True, True, True, True, True, True, True,
+    True, True, True, True, True, True, True,
 ]
 
 #########################################################################
@@ -46,16 +46,16 @@ generate_heatmaps = [
 all_losses = []
 for m in range(len(folder_names)):
 
-    val_data = HDF5Dataset(data_file, leg_swaps, arm_swaps, generate_heatmaps=True, device="cuda:0")
+    val_data = HDF5Dataset(data_file, leg_swaps=leg_swaps, arm_swaps=arm_swaps, generate_heatmaps=True, device="cuda:0")
     val_sampler = HDF5Sampler(data_source=val_data)
     model = network(loss_functions[m], val_data.image_size, noise_length=8).cuda()
     model.training = False
     loss_history = []
 
     dir = "output/{}/state_dict/".format(folder_names[m])
-    files = os.listdir(dir)
-    files.sort(key = lambda x: int(re.search(r'\d+', x).group()))
-
+    #files = os.listdir(dir)
+    #files.sort(key = lambda x: int(re.search(r'\d+', x).group()))
+    files = [checkpoint]
     e = 0
     for filename in files:
 
@@ -82,20 +82,21 @@ for m in range(len(folder_names)):
             
             if sample_methods[m] == "mixed":
                 loss = model.mixed_sample_loss(batch, samples)
+                loss = torch.sum(losses)
             elif sample_methods[m] == "select":
                 losses = model.min_sample_loss(batch, samples)
-                loss = torch.mean(losses)
+                loss = torch.sum(losses)
             elif sample_methods[m] == "constant":
                 losses = model.unconditioned_loss(batch)
-                loss = torch.mean(losses)
-            val_loss += loss.item()
-        epoch_loss_history.append(val_loss / len(val_loader))
-        
+                loss = torch.sum(losses)
+            val_loss += loss.item() / len(val_loader.dataset)
+        print("{}, {}, {}".format(folder_names[m], filename, val_loss))
+
+        epoch_loss_history.append(val_loss)
         loss_history.append(epoch_loss_history)
         del val_iter
         del val_loader
         del epoch_loss_history
-        print("losses for model {}, epoch {}: {}".format(m, e, loss_history[e]))
         e += 1
     all_losses.append(loss_history)
     del loss_history
