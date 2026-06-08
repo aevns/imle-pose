@@ -1,14 +1,15 @@
 #!/bin/bash
-dataset=simple
+dataset=stick
 model=UNet
-loss=gaussian
+loss=log_dkl
+samples=4
 combine=mixed
-legswaps=0
-armswaps=0
+legswaps=0.5
+armswaps=0.1
 output=test
 
 CONDA_BASE=$(conda info --base)
 source $CONDA_BASE/etc/profile.d/conda.sh
 conda activate pytorch_env
 
-python train.py -d data/$dataset/ --model $model --start 0 --checkpoints 100 --end 6000 --loss $loss --combine $combine --legswaps $legswaps --armswaps $armswaps --output $output
+python train.py -d data/$dataset/ --model $model --start 0 --checkpoints 100 --end 6000 --loss $loss --samples $samples --combine $combine --legswaps $legswaps --armswaps $armswaps --output $output

@@ -27,5 +27,4 @@ torch==1.12.1+computecanada
 torchvision==0.13.1+torch1121.computecanada
 typing_extensions==4.3.0+computecanada
 urllib3==1.26.12+computecanada
-wandb==0.12.5+computecanada
 yaspin==2.1.0+computecanada

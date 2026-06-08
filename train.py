@@ -14,9 +14,9 @@ from models.unet import UNet
 from models.unet import UNetLarge
 from models.unet_pretrained import UNetPretrained
 
-import wandb
+#import wandb
 
-wandb.login(key='9a92298caf7b15ab1719f839763164b8932817a9')
+#wandb.login(key='9a92298caf7b15ab1719f839763164b8932817a9')
 
 print(torch.cuda.get_arch_list())
 print([torch.cuda.device(i) for i in range(torch.cuda.device_count())])
@@ -24,7 +24,7 @@ print([torch.cuda.device(i) for i in range(torch.cuda.device_count())])
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataroot', '-d')
 parser.add_argument('--learningrate', '-lr', nargs='?', default=0.001, type=float)
-parser.add_argument('--weightdecay', '-wd', nargs='?', default=0, type=float)
+parser.add_argument('--weightdecay', '-wd', nargs='?', default=0.01, type=float)
 parser.add_argument('--batchsize', '-b', nargs='?', default=64, type=int)
 parser.add_argument('--model', '-m', nargs='?', default='UNet')
 parser.add_argument('--start', '-s', nargs='?', default=0, type=int)
@@ -37,6 +37,7 @@ parser.add_argument('--armswaps', '-as', nargs='?', default=0, type=float)
 parser.add_argument('--legswaps', '-ls', nargs='?', default=0, type=float)
 parser.add_argument('--output', '-o', nargs='?', default='unnamed')
 args = parser.parse_args()
+print(args)
 torch.autograd.set_detect_anomaly(False)
 
 start_epoch = args.start
@@ -52,9 +53,9 @@ val_data_filename = args.dataroot + "val.hdf5"
 leg_swaps = args.legswaps
 arm_swaps = args.armswaps
 
-wandb.init(
-    project="imle-pose",
-    config = {'args': args})
+#wandb.init(
+#    project="imle-pose",
+#   config = {'args': args})
 
 if args.model == 'UNet':
     network = UNet
@@ -65,34 +66,37 @@ elif args.model == 'UNetLarge':
 noise_length = 8
 
 samples = args.samples
-if args.loss == 'gaussian':
-    loss_function = lf.gaussian_nll
-    generate_heatmaps = False
-elif args.loss == 'mse':
-    loss_function = lf.heatmap_target_mse
+if args.loss == 'mse':
+    train_loss_fn = lf.heatmap_target_mse
+    val_loss_fn = lf.heatmap_target_mse
     generate_heatmaps = True
+elif args.loss == 'gaussian':
+    train_loss_fn = lambda pred, x : lf.gaussian_nll(pred, x) + 1E-5 * lf.label_loss(pred, x)
+    val_loss_fn = lf.gaussian_nll
+    generate_heatmaps = False
 elif args.loss == 'dkl':
-    loss_function = lf.heatmap_target_dkl
+    train_loss_fn = lambda pred, x : lf.heatmap_target_dkl(pred, x) + 1E-5 * lf.label_loss(pred, x)
+    val_loss_fn = lf.heatmap_target_dkl
     generate_heatmaps = True
 
 sample_method = args.combine
 
 output_folder = args.output
 
-os.makedirs(os.path.dirname("output/{}/state_dict/".format(output_folder)), exist_ok=True)
-os.makedirs(os.path.dirname("output/{}/training_log/".format(output_folder)), exist_ok=True)
+os.makedirs(os.path.dirname("{}/state_dict/".format(output_folder)), exist_ok=True)
+os.makedirs(os.path.dirname("{}/training_log/".format(output_folder)), exist_ok=True)
 
 train_data = HDF5Dataset(
     train_data_filename,
-    leg_swaps,
-    arm_swaps,
+    leg_swaps=leg_swaps,
+    arm_swaps=arm_swaps,
     generate_heatmaps=generate_heatmaps,
     device="cuda:0")
 
 val_data = HDF5Dataset(
     val_data_filename,
-    leg_swaps,
-    arm_swaps,
+    leg_swaps=leg_swaps,
+    arm_swaps=arm_swaps,
     generate_heatmaps=generate_heatmaps,
     device="cuda:0")
 
@@ -114,18 +118,19 @@ val_loader = torch.utils.data.DataLoader(
     num_workers=0,
     sampler=val_sampler)
 
-model = network(loss_function, train_data.image_size, noise_length=noise_length).cuda(0)
+model = network(train_loss_fn, train_data.image_size, noise_length=noise_length).cuda(0)
 
 if start_epoch > 0:
-    state_dict = torch.load("output/{}/state_dict/network_{}.pth".format(output_folder, start_epoch - 1))
+    state_dict = torch.load("{}/state_dict/network_{}.pth".format(output_folder, start_epoch - 1))
     model.load_state_dict(state_dict)
-wandb.watch(model, log_freq=len(train_loader)//batch_size)
+#wandb.watch(model, log_freq=len(train_loader)//batch_size)
 
-optimizer = torch.optim.Adam(model.parameters(), lr = learning_rate, weight_decay=weight_decay)
+optimizer = torch.optim.AdamW(model.parameters(), lr = learning_rate, weight_decay=weight_decay)
 for e in range(start_epoch, end_epoch):
 
     # TRAINING
     model.training = True
+    model.loss = train_loss_fn
     train_loss = 0
     train_iter = iter(train_loader)
     for i in range(len(train_loader)):
@@ -147,6 +152,7 @@ for e in range(start_epoch, end_epoch):
     
     # VALIDAITON
     model.training = False
+    model.loss = val_loss_fn
     with torch.no_grad():
         val_loss = 0
         val_iter = iter(val_loader)
@@ -165,13 +171,13 @@ for e in range(start_epoch, end_epoch):
             val_loss += loss.item()
     
     #LOGGING
-    wandb.log({
-        "epoch": e,
-        "training loss": train_loss / len(train_loader),
-        "validation loss": val_loss / len(val_loader),
-    })
-
+    #wandb.log({
+    #    "epoch": e,
+    #    "training loss": train_loss / len(train_loader),
+    #    "validation loss": val_loss / len(val_loader),
+    #})
+    print("epoch:", e, "training loss:", train_loss / len(train_loader), "validation loss:", val_loss / len(val_loader))
     if (e+1) % checkpoint_freq == 0:
         torch.save(
             model.state_dict(),
-            "output/{}/state_dict/network_{}.pth".format(output_folder, e))
+            "{}/state_dict/network_{}.pth".format(output_folder, e))

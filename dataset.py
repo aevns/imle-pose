@@ -6,7 +6,7 @@ import h5py
 
 class HDF5Sampler(torch.utils.data.Sampler):
     def __init__(self, data_source, generator = None):
-        super().__init__(data_source)
+        super().__init__()
         self.data_source = data_source
         self.generator = generator
 
@@ -39,6 +39,9 @@ class HDF5Dataset(torch.utils.data.Dataset):
         self.device = device
         self.hdf5 = h5py.File(data_file, 'r', libver="latest", swmr=True)
 
+        self.leg_swaps = leg_swaps
+        self.arm_swaps = arm_swaps
+
         self.mean = torch.from_numpy(self.hdf5['mean_color'][...])
         self.std = torch.from_numpy(self.hdf5['std_color'][...])
         self.keypoints = self.hdf5['keypoints'][...]
@@ -66,6 +69,16 @@ class HDF5Dataset(torch.utils.data.Dataset):
     def set_buffers(self, chunk):
         self.pose_buffer = torch.tensor(self.hdf5['poses'][chunk], dtype=torch.float, device=self.device)
         self.image_buffer = torch.tensor(self.hdf5['images'][chunk], dtype=torch.float, device=self.device)
+        
+        if self.arm_swaps > 0:
+            swaps = torch.rand(self.pose_buffer.shape[0], device=Device) < self.arm_swaps
+            swapped_indices = torch.tensor([0,1,2,3,4,6,5,8,7,10,9,11,12,13,14,15,16], dtype=torch.long, device=Device)
+            self.pose_buffer[swaps] = self.pose_buffer[swaps][:,swapped_indices]
+        
+        if self.leg_swaps > 0:
+            swaps = torch.rand(self.pose_buffer.shape[0], device=Device) < self.leg_swaps
+            swapped_indices = torch.tensor([0,1,2,3,4,5,6,7,8,9,10,12,11,14,13,16,15], dtype=torch.long, device=Device)
+            self.pose_buffer[swaps] = self.pose_buffer[swaps][:,swapped_indices]
 
     # converted from SimplePose target generator
     # joints_3d -> joints_2d (joints_3d was (x,y,s), where s is a label mask)

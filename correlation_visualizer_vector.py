@@ -19,41 +19,50 @@ from collections import defaultdict
 
 import models.utils.loss_functions as lf
 
+from dataset import HDF5Sampler
 from dataset import HDF5Dataset
 from models.unet import UNet
 
 model = UNet
-model_name = "simple_8gs20"
-epoch = 23
+model_name = "simple_full_0"
+epoch = 1500
 samples=100
 image_scale = 16
 plot_variables = torch.tensor([[11,0],[14,0]])
 
-val_data = HDF5Dataset("data/stick/val.hdf5", 0, False)
+val_data = HDF5Dataset("data/simple/val.hdf5", generate_heatmaps=False, device="cuda:0")
+
+val_sampler = HDF5Sampler(
+    data_source=val_data)
 
 val_loader = torch.utils.data.DataLoader(
     val_data,
-    batch_size=1,
+    batch_size = 1,
     num_workers=0,
-    pin_memory=False,
+    sampler=val_sampler,
+    pin_memory=True,
     shuffle=False,
-    drop_last=True
-)
+    drop_last=True)
 
 network = model(lf.gaussian_nll, val_data.image_size, 8).cuda()
+input_size = network.input_size[1]
 
 state_dict = torch.load("./output/{}/state_dict/network_{}.pth".format(model_name, epoch))
 network.load_state_dict(state_dict)
 network.training = False
 
-val_iter = iter(val_loader)
-for i in range(40): # 87, 101
-    batch = next(val_iter)
+#val_iter = iter(val_loader)
+#for i in range(40): # 87, 101
+#    batch = next(val_iter)
+n = 40
+batch = {
+    'image': val_data.normalize(torch.tensor(val_data.hdf5['images'][n], dtype=torch.float, device=val_data.device))[None, :, :, :],
+    'pose': torch.tensor(val_data.hdf5['poses'][n], dtype=torch.float, device=val_data.device)[None, :, :],
+    }
 
-#image_cpu = batch['image'][0].cpu().detach()
 pose_cpu = batch['pose'][0].cpu().detach()
 
-img = torch.zeros((3,64*image_scale,64*image_scale))
+img = torch.zeros((3,input_size*image_scale,input_size*image_scale))
 
 for i in range(samples):
     predictions = network.get_sample(batch)
@@ -74,8 +83,8 @@ for i in range(samples):
             [0, pred_cpu[plot_variables[1,0],plot_variables[1,1]+3]]
             ])
     
-    x_vals = torch.linspace(0, 64-1/image_scale, 64*image_scale, device=pred_cpu.device).unsqueeze(0).expand(64*image_scale, 64*image_scale)
-    y_vals = torch.linspace(0, 64-1/image_scale, 64*image_scale, device=pred_cpu.device).unsqueeze(1).expand(64*image_scale, 64*image_scale)
+    x_vals = torch.linspace(0, input_size-1/image_scale, input_size*image_scale, device=pred_cpu.device).unsqueeze(0).expand(input_size*image_scale, input_size*image_scale)
+    y_vals = torch.linspace(0, input_size-1/image_scale, input_size*image_scale, device=pred_cpu.device).unsqueeze(1).expand(input_size*image_scale, input_size*image_scale)
 
     points = torch.stack((x_vals, y_vals), dim=-1)
 
@@ -89,12 +98,12 @@ img_pil = torchvision.transforms.ToPILImage()(img)
 
 fig=plt.figure(figsize=(16, 9), dpi= 80, facecolor='w', edgecolor='k')
 axes=fig.subplots(1,1)
-axes.imshow(img_pil)
-axes.set_xlabel("Position of joint {}".format(plot_variables[0]))
-axes.set_ylabel("Position of joint {}".format(plot_variables[1]))
-
-axes.plot([0,image_scale * 64], [0,image_scale * 64])
-axes.plot(pose_cpu[plot_variables[0,0],plot_variables[0,1]]*image_scale, pose_cpu[plot_variables[1,0],plot_variables[1,1]]*image_scale, marker="o")
+axes.imshow(img_pil, extent=(0, input_size, input_size, 0))
+#axes.set_xlabel("Position of joint {}".format(plot_variables[0]))
+#axes.set_ylabel("Position of joint {}".format(plot_variables[1]))
+axes.set_xlabel("Horizontal Position of Left Elbow (px)")
+axes.set_ylabel("Horizontal Position of Left Wrist (px)")
+axes.plot(pose_cpu[plot_variables[0,0],plot_variables[0,1]], pose_cpu[plot_variables[1,0],plot_variables[1,1]], marker=".")
 
 plt.show()
 print('done')

@@ -181,6 +181,33 @@ class SimpleTransform(object):
         target_weight = target_weight.reshape((-1))
         return target, target_weight
 
+    # Normalized log-probability gaussian kernel
+    # Would need to be in dataset.py for use in training!
+    # Broken! Need to switch numpy arrays to tensors or vice-versa
+    def _log_target_generator(self, joints_2d):
+        if not self.generate_heatmaps:
+            return 0, 0
+
+        H, W = self._heatmap_size
+        num_joints = len(self.keypoints)
+        target_weight = np.ones((num_joints, 1), dtype=np.float32)
+        target = np.zeros((num_joints, H, W),
+                            dtype=np.float32)
+        target -= np.log(H * W)
+
+        x = np.arange(0, W, 1, dtype=np.float32)
+        y = np.arange(0, H, 1, dtype=np.float32)[:, None]
+        for i in range(num_joints):
+            mu_x = int(joints_2d[i, 0] / self._feat_stride[0] + 0.5)
+            mu_y = int(joints_2d[i, 1] / self._feat_stride[1] + 0.5)
+            # skip unlabled keypoints
+            #if ~(mu_x < 0 or mu_x > W or mu_y < 0 or mu_y > H):
+            target[i] = -((x - mu_x)**2 + (y - mu_y)**2) / (2 * self.sigma**2)
+            #target[i] = torch.max(target[i], np.log( 1E-4 / (H * W)))
+            target[i] = torch.log_softmax(target[i].view(H * W), dim=(-1)).view(H, W)
+
+        return torch.tensor(target, device=self.device), np.expand_dims(target_weight, -1)
+
     def __call__(self, src, label):
         bbox = list(label['bbox'])
         gt_joints = label['joints_3d']
@@ -264,7 +291,7 @@ class SimpleTransform(object):
         img[2].add_(-0.480)
         
         if self._loss_type == 'Combined':
-        	return img, [torch.from_numpy(target_mse), torch.from_numpy(target_inter)], [torch.from_numpy(target_weight_mse), torch.from_numpy(target_weight_inter)], torch.Tensor(bbox)
+            return img, [torch.from_numpy(target_mse), torch.from_numpy(target_inter)], [torch.from_numpy(target_weight_mse), torch.from_numpy(target_weight_inter)], torch.Tensor(bbox)
         else:
             return img, torch.from_numpy(target), torch.from_numpy(target_weight), torch.Tensor(bbox)
 
