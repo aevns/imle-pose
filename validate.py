@@ -22,34 +22,44 @@ folder_names = [
     "dkl_1", "dkl_m4", "dkl_m8", "dkl_m16", "dkl_s4", "dkl_s8", "dkl_s16"
 ]
 checkpoint = "network_899.pth"
-samples = 40
+samples = [
+    1, 4, 8, 16, 4, 8, 16,
+    1, 4, 8, 16, 4, 8, 16,
+    1, 4, 8, 16, 4, 8, 16
+]
+samples = [
+    1, 100, 100, 100, 100, 100, 100,
+    1, 100, 100, 100, 100, 100, 100,
+    1, 100, 100, 100, 100, 100, 100
+]
 leg_swaps = 0.5
 arm_swaps = 0.1
+#loss_functions = [
+#    lf.heatmap_target_mse, lf.heatmap_target_mse, lf.heatmap_target_mse, lf.heatmap_target_mse, lf.heatmap_target_mse, lf.heatmap_target_mse, lf.heatmap_target_mse,
+#    lf.gaussian_nll, lf.gaussian_nll, lf.gaussian_nll, lf.gaussian_nll, lf.gaussian_nll, lf.gaussian_nll, lf.gaussian_nll,
+#    lf.heatmap_target_dkl, lf.heatmap_target_dkl, lf.heatmap_target_dkl, lf.heatmap_target_dkl, lf.heatmap_target_dkl, lf.heatmap_target_dkl, lf.heatmap_target_dkl
+#]
 loss_functions = [
-    lf.heatmap_target_mse, lf.heatmap_target_mse, lf.heatmap_target_mse, lf.heatmap_target_mse, lf.heatmap_target_mse, lf.heatmap_target_mse, lf.heatmap_target_mse,
-    lf.gaussian_nll, lf.gaussian_nll, lf.gaussian_nll, lf.gaussian_nll, lf.gaussian_nll, lf.gaussian_nll, lf.gaussian_nll,
+    lf.heatmap_mpjpe, lf.heatmap_mpjpe, lf.heatmap_mpjpe, lf.heatmap_mpjpe, lf.heatmap_mpjpe, lf.heatmap_mpjpe, lf.heatmap_mpjpe,
+    lf.gaussian_dkl, lf.gaussian_dkl, lf.gaussian_dkl, lf.gaussian_dkl, lf.gaussian_dkl, lf.gaussian_dkl, lf.gaussian_dkl,
     lf.heatmap_target_dkl, lf.heatmap_target_dkl, lf.heatmap_target_dkl, lf.heatmap_target_dkl, lf.heatmap_target_dkl, lf.heatmap_target_dkl, lf.heatmap_target_dkl
 ]
 sample_methods = [
-    "constant", "mixed", "mixed", "mixed", "mixed", "mixed", "mixed",
-    "constant", "mixed", "mixed", "mixed", "mixed", "mixed", "mixed",
-    "constant", "mixed", "mixed", "mixed", "mixed", "mixed", "mixed",
+    "constant", "select", "select", "select", "select", "select", "select",
+    "constant", "select", "select", "select", "select", "select", "select",
+    "constant", "select", "select", "select", "select", "select", "select"
 ]
 generate_heatmaps = [
     False, False, False, False, False, False, False,
     True, True, True, True, True, True, True,
-    True, True, True, True, True, True, True,
+    True, True, True, True, True, True, True
 ]
 
 #########################################################################
 
 all_losses = []
-for m in range(len(folder_names)):
+for m in range(7, len(folder_names)):
 
-    val_data = HDF5Dataset(data_file, leg_swaps=leg_swaps, arm_swaps=arm_swaps, generate_heatmaps=True, device="cuda:0")
-    val_sampler = HDF5Sampler(data_source=val_data)
-    model = network(loss_functions[m], val_data.image_size, noise_length=8).cuda()
-    model.training = False
     loss_history = []
 
     dir = "output/{}/state_dict/".format(folder_names[m])
@@ -58,33 +68,45 @@ for m in range(len(folder_names)):
     files = [checkpoint]
     e = 0
     for filename in files:
-
-        f = os.path.join(dir, filename)
-        state_dict = torch.load(f, map_location=torch.device('cpu'))
-        model.load_state_dict(state_dict)
-        model.training = False
-        del state_dict
-        epoch_loss_history = []
-
+        
+        val_data = HDF5Dataset(
+            data_file,
+            leg_swaps=leg_swaps,
+            arm_swaps=arm_swaps,
+            generate_heatmaps=True,
+            device="cuda:0")
+        
+        val_sampler = HDF5Sampler(
+            data_source=val_data,
+            seed=145)
+        
         val_loader = torch.utils.data.DataLoader(
             val_data,
             batch_size=batch_size,
             num_workers=0,
-            #pin_memory=False,
-            #shuffle=True,
-            #drop_last=True,
             sampler=val_sampler
         )
+        
+        model = network(loss_functions[m], val_data.image_size, noise_length=8).cuda()
+        model.train(False)
+
+        f = os.path.join(dir, filename)
+        state_dict = torch.load(f, map_location=torch.device('cpu'))
+        model.load_state_dict(state_dict)
+        model.train(False)
+        del state_dict
+        epoch_loss_history = []
+
         val_iter = iter(val_loader)
         val_loss = 0
         for i in range(len(val_loader)):
             batch = {k:v.cuda(0, non_blocking = True) for k, v in next(val_iter).items()}
             
             if sample_methods[m] == "mixed":
-                loss = model.mixed_sample_loss(batch, samples)
+                loss = model.mixed_sample_loss(batch, samples[m])
                 loss = torch.sum(losses)
             elif sample_methods[m] == "select":
-                losses = model.min_sample_loss(batch, samples)
+                losses = model.min_sample_loss(batch, samples[m])
                 loss = torch.sum(losses)
             elif sample_methods[m] == "constant":
                 losses = model.unconditioned_loss(batch)

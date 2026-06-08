@@ -5,10 +5,11 @@ import torchvision.transforms as transforms
 import h5py
 
 class HDF5Sampler(torch.utils.data.Sampler):
-    def __init__(self, data_source, generator = None):
+    def __init__(self, data_source, generator = None, seed = None):
         super().__init__()
         self.data_source = data_source
         self.generator = generator
+        self.seed = seed
 
     def __len__(self) -> int:
         return len(self.data_source)
@@ -16,7 +17,7 @@ class HDF5Sampler(torch.utils.data.Sampler):
     def __iter__(self) -> Iterator[int]:
         n = len(self.data_source)
         if self.generator is None:
-            seed = int(torch.empty((), dtype=torch.int64).random_().item())
+            seed = self.seed or int(torch.empty((), dtype=torch.int64).random_().item())
             generator = torch.Generator()
             generator.manual_seed(seed)
         else:

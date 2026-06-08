@@ -24,23 +24,24 @@ from models.unet_pretrained import UNetPretrained
 
 data_file = "data/stick/val.hdf5"
 network = UNetLarge
-folder_name = "gauss_s8"
+folder_name = "gauss_m16"
 checkpoint = "network_899.pth"
 samples = 100
-leg_swaps = 0.5
-arm_swaps = 0.1
+leg_swaps = 0.0 #0.5
+arm_swaps = 0.0 #0.1
 loss_function = lf.gaussian_nll
 sample_method = "select"
 
 val_data = HDF5Dataset(
     data_file,
-    leg_swaps = 0.5,
-    arm_swaps = 0.1,
+    leg_swaps = leg_swaps,
+    arm_swaps = arm_swaps,
     generate_heatmaps=True,
     device="cuda:0")
 
 val_sampler = HDF5Sampler(
-    data_source=val_data)
+    data_source=val_data,
+    seed=26) #26
 
 val_loader = torch.utils.data.DataLoader(
     val_data,
@@ -53,7 +54,7 @@ model.train(False)
 
 state_dict = torch.load("output/{}/state_dict/{}".format(folder_name, checkpoint))
 model.load_state_dict(state_dict)
-model.training = False
+model.train(False)
 
 with torch.no_grad():
     val_iter = iter(val_loader)
@@ -82,7 +83,7 @@ r"""Plots skeleton pose on a matplotlib axis.
         Returns:
             Module: self
 """
-def plot_skeleton(ax, pose_2d, bones=val_data.skeleton, linewidth=2, linestyle='-', label=None, alpha=1):
+def plot_skeleton(ax, pose_2d, bones=val_data.skeleton, linewidth=1, linestyle='-', label=None, alpha=1):
     cmap = plt.get_cmap('prism')
     for i, bone in enumerate(bones):
         a = 1
@@ -147,7 +148,7 @@ def heatmap2image(heatmap):
     #img_max, indices = torch.max(img,dim=-1,keepdim=True)
     #img_max, indices = torch.max(img_max,dim=-2,keepdim=True)
     img_max = torch.max(img)
-    return img/img_max
+    return img/img_max / 4
 
 def plot_pose_confidence(full_pose, ax=plt):
     i=0
@@ -161,7 +162,7 @@ def plot_pose_confidence(full_pose, ax=plt):
                   angle=np.rad2deg(np.arctan2(*(v[:,0].flip(0)))),
                   color=joint_colors[i].tolist(),
                   alpha=1,#joint[5].item(),
-                  lw=1)
+                  lw=0.5)
         ellipse.set_facecolor('none')
         ax.add_artist(ellipse)
         i+=1
@@ -170,7 +171,7 @@ def plot_pose_confidence(full_pose, ax=plt):
 preds = predictions['pose']
 heatmaps = predictions['heatmap']
 
-fig=plt.figure(figsize=(16, 9), dpi= 80, facecolor='w', edgecolor='k')
+fig=plt.figure(constrained_layout=True, figsize=(3, 2), dpi= 300, facecolor='w', edgecolor='k')
 axes=fig.subplots(1,2)
 
 image_cpu = batch['image'].cpu().detach()
@@ -190,17 +191,16 @@ bestpose = torch.argmax(probs)
 
 # plot the ground truth and the predicted poses on top of the image
 plotPosesOnImage([pred_cpu[bestpose].detach(), pose_cpu[0]], val_data.denormalize(image_cpu[0])[[2,1,0],:,:], ax=axes[0], labels=['prediction', 'ground truth label'])
-#axes[0].set_title('Input image with predicted pose (solid) and GT pose (dashed)')
-#axes[0].legend(loc='lower left')
 
 # plot the predicted probability map and the predicted pose on top
 plotMultiPosesOnImage(pred_cpu.detach(), heatmap2image(heatmap_cpu[bestpose]).detach(), ax=axes[1], label='predictions')
-#axes[1].set_title('Predicted probability map with predicted pose overlayed')
-#axes[1].legend(loc='lower left')
 
 plot_pose_confidence(pred_cpu[bestpose].detach(), axes[0])
 plot_pose_confidence(pred_cpu[bestpose].detach(), axes[1])
 
+plt.suptitle("a)", x=0, ha='left')
+axes[0].axis('off')
+axes[1].axis('off')
 plt.show()
 image_modified = val_data.denormalize(image_cpu[0])
 print('done')

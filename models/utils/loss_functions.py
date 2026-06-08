@@ -32,6 +32,20 @@ def gaussian_nll(pred, x):
     # constant term for log probability density per square pixel: ln(2 pi) = 1.8378770664093455
     return torch.sum((torch.log(torch.det(cov_mat)) + q)/2 + 1.8378770664093455, dim=(-1))
 
+def gaussian_dkl(pred, x):
+    pose = pred['pose'][:,:,0:2]
+    cov_idx = torch.tensor([[2,4],[4,3]])
+    cov_mat = pred['pose'][:,:,cov_idx]
+    
+    gt_pose = x['pose'][:,:,0:2]
+    cov_gt = torch.tensor([[1/12,0],[0,1/12]], device=cov_mat.get_device())
+
+    dif = torch.reshape(gt_pose - pose, (pose.shape[0], pose.shape[1], pose.shape[2], 1))
+    q = torch.matmul(torch.transpose(dif,-1,-2), torch.matmul(torch.inverse(cov_mat), dif))
+    r = torch.linalg.solve(cov_mat, cov_gt)
+    s = torch.log(torch.linalg.det(cov_mat) / torch.det(cov_gt))
+    return torch.sum((q.view(pose.shape[0], pose.shape[1]) - 2 + r[:,:,0,0] + r[:,:,1,1] + s) / 2, dim=-1)
+
 def heatmap_target_mse(pred, x):
     return torch.sum(nn.MSELoss(reduction='none')(pred['heatmap'], x['target']), dim=(-3,-2,-1))
 
@@ -47,3 +61,22 @@ def heatmap_target_prob_prod(pred, x):
     eps = torch.tensor([1E-8], device=x['target'].device)
     target = torch.max(x['target'] / torch.sum(x['target'], dim=(-3,-2,-1)).view(-1,1,1,1), eps)
     return torch.prod(torch.sum(target * torch.max(pred['heatmap'], eps), dim=(-2,-1)), dim=-1)
+
+def gaussian_mpjpe(pred, x):
+    pose = pred['pose'][:,:,0:2]
+    gt_pose = x['pose'][:,:,0:2]
+    
+    test = torch.linalg.vector_norm(pose - gt_pose, dim=-1)
+    test2 = torch.mean(torch.linalg.vector_norm(pose - gt_pose, dim=-1), dim = -1)
+    return torch.mean(torch.linalg.vector_norm(pose - gt_pose, dim=-1), dim = -1)
+
+def heatmap_mpjpe(pred, x):
+    heatmaps = pred['heatmap']
+    flat_idx = heatmaps.view(*heatmaps.shape[0:-2], -1).argmax(-1)
+    idx = torch.unravel_index(flat_idx, heatmaps.shape)
+    pose = torch.stack((idx[-1],idx[-2]), dim=-1)
+    gt_pose = x['pose'][:,:,0:2]
+    
+    test = torch.linalg.vector_norm(pose - gt_pose, dim=-1)
+    test2 = torch.mean(torch.linalg.vector_norm(pose - gt_pose, dim=-1), dim = -1)
+    return torch.mean(torch.linalg.vector_norm(pose - gt_pose, dim=-1), dim = -1)
