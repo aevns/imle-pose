@@ -1,7 +1,7 @@
 #!/bin/bash
 dataset=stick
 model=UNet
-loss=log_dkl
+loss=dkl
 samples=4
 combine=mixed
 legswaps=0.5

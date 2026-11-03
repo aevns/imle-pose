@@ -143,43 +143,30 @@ class UNetPretrained(nn.Module):
         return self.loss(self.forward(x, noise), x)
 
     def mixed_sample_backward(self, x, n):
-        net_grad = {}
+        with torch.no_grad():
+            noise = []
+            nlls = []
+            for i in range(n):
+                z = torch.randn((x['image'].shape[0], self.noise_length), device = x['image'].device)
+                noise.append(z)
+                nlls.append(self.loss(self.forward(x, z), x))
+            nlls = torch.stack(nlls)
+            weights = torch.softmax(-nlls, dim=0) / nlls.shape[1]
+            net_nll = torch.mean(log(n) - torch.logsumexp(-nlls, dim=0))
+        self.zero_grad()
         for i in range(n):
-            z = torch.randn((x['image'].shape[0], self.noise_length), device = x['image'].device)
-            pred = self.forward(x, z)
-            nll = torch.mean(self.loss(pred, x))
-            self.zero_grad()
-            nll.backward()
-            with torch.no_grad():
-                if i==0:
-                    for name, param in self.named_parameters():
-                        net_grad[name] = param.grad.detach().clone()
-                    net_nll = nll
-                else:
-                    stabilizer = torch.max(net_nll, nll)
-                    for name, param in self.named_parameters():
-                        net_grad[name] = (
-                            (torch.exp(net_nll - stabilizer) * param.grad
-                            + torch.exp(nll - stabilizer) * net_grad[name])
-                            / (torch.exp(net_nll - stabilizer) + torch.exp(nll - stabilizer)))
-                    net_nll = -torch.log(torch.exp(-net_nll + stabilizer) + torch.exp(-nll + stabilizer)) + stabilizer
-        with torch.no_grad():  
-            for name, param in self.named_parameters():
-                param.grad = net_grad[name]
-            return net_nll
+            nll = self.loss(self.forward(x, noise[i]), x)
+            torch.sum(weights[i] * nll).backward()
+        return net_nll
 
     def mixed_sample_loss(self, x, n):
-        with torch.no_grad():  
+        with torch.no_grad():
+            nlls = []
             for i in range(n):
                 z = torch.randn((x['image'].shape[0], self.noise_length), device = x['image'].device)
                 pred = self.forward(x, z)
-                nll = torch.mean(self.loss(pred, x))
-                if i==0:
-                    net_nll = nll
-                else:
-                    stabilizer = torch.max(net_nll, nll)
-                    net_nll = -torch.log(torch.exp(-net_nll + stabilizer) + torch.exp(-nll + stabilizer)) + stabilizer
-            return net_nll
+                nlls.append(self.loss(pred, x))
+            return torch.mean(log(n) - torch.logsumexp(-torch.stack(nlls), dim=0))
 
     def gaussian_fit(pred):
         n, c, h, w = pred.shape

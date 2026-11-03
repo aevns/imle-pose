@@ -17,7 +17,7 @@ pip install --no-index --upgrade pip
 pip install torch --no-index
 pip install --no-index -r requirements.txt
 
-wandb login 9a92298caf7b15ab1719f839763164b8932817a9
+wandb login
 
 ### extract dataset
 dataset=simple

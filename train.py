@@ -11,12 +11,11 @@ import models.utils.loss_functions as lf
 from dataset import HDF5Sampler
 from dataset import HDF5Dataset
 from models.unet import UNet
-from models.unet import UNetLarge
 from models.unet_pretrained import UNetPretrained
 
 #import wandb
 
-#wandb.login(key='9a92298caf7b15ab1719f839763164b8932817a9')
+#wandb.login()
 
 print(torch.cuda.get_arch_list())
 print([torch.cuda.device(i) for i in range(torch.cuda.device_count())])
@@ -26,13 +25,13 @@ parser.add_argument('--dataroot', '-d')
 parser.add_argument('--learningrate', '-lr', nargs='?', default=0.001, type=float)
 parser.add_argument('--weightdecay', '-wd', nargs='?', default=0.01, type=float)
 parser.add_argument('--batchsize', '-b', nargs='?', default=64, type=int)
-parser.add_argument('--model', '-m', nargs='?', default='UNet')
+parser.add_argument('--model', '-m', nargs='?', default='UNet', choices=['UNet', 'UNetPretrained'])
 parser.add_argument('--start', '-s', nargs='?', default=0, type=int)
 parser.add_argument('--checkpoints', '-cp', nargs='?', default=1, type=int)
 parser.add_argument('--end', '-e', nargs='?', default=400, type=int)
-parser.add_argument('--loss', '-l', nargs='?', default='gaussian')
+parser.add_argument('--loss', '-l', nargs='?', default='gaussian', choices=['mse', 'gaussian', 'dkl'])
 parser.add_argument('--samples', '-sm', nargs='?', default=30, type=int)
-parser.add_argument('--combine', '-c', nargs='?', default='select')
+parser.add_argument('--combine', '-c', nargs='?', default='select', choices=['mixed', 'select', 'constant'])
 parser.add_argument('--armswaps', '-as', nargs='?', default=0, type=float)
 parser.add_argument('--legswaps', '-ls', nargs='?', default=0, type=float)
 parser.add_argument('--output', '-o', nargs='?', default='unnamed')
@@ -61,8 +60,6 @@ if args.model == 'UNet':
     network = UNet
 elif args.model == 'UNetPretrained':
     network = UNetPretrained
-elif args.model == 'UNetLarge':
-    network = UNetLarge
 noise_length = 8
 
 samples = args.samples
@@ -129,7 +126,7 @@ optimizer = torch.optim.AdamW(model.parameters(), lr = learning_rate, weight_dec
 for e in range(start_epoch, end_epoch):
 
     # TRAINING
-    model.training = True
+    model.train()
     model.loss = train_loss_fn
     train_loss = 0
     train_iter = iter(train_loader)
@@ -151,7 +148,7 @@ for e in range(start_epoch, end_epoch):
         train_loss += loss.item()
     
     # VALIDAITON
-    model.training = False
+    model.eval()
     model.loss = val_loss_fn
     with torch.no_grad():
         val_loss = 0

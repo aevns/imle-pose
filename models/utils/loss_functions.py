@@ -38,7 +38,7 @@ def gaussian_dkl(pred, x):
     cov_mat = pred['pose'][:,:,cov_idx]
     
     gt_pose = x['pose'][:,:,0:2]
-    cov_gt = torch.tensor([[1/12,0],[0,1/12]], device=cov_mat.get_device())
+    cov_gt = torch.tensor([[1/12,0],[0,1/12]], device=cov_mat.device)
 
     dif = torch.reshape(gt_pose - pose, (pose.shape[0], pose.shape[1], pose.shape[2], 1))
     q = torch.matmul(torch.transpose(dif,-1,-2), torch.matmul(torch.inverse(cov_mat), dif))

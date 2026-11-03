@@ -21,12 +21,12 @@
             "justMyCode": true,
             "args":[
                 "-d","data/stick/",
-                "--model","UNetLarge",
+                "--model","UNet",
                 "--loss","gaussian",
                 "--combine","mixed",
                 "--samples","8",
-                "--legswap","0.5",
-                "--armswap","0.1",
+                "--legswaps","0.5",
+                "--armswaps","0.1",
                 "--checkpoints","40",
                 "--output","output/gauss_mixed_test"]
         },
@@ -38,14 +38,14 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args":[
-                "-d","data/stick/",
-                "--model","UNetLarge",
-                "--loss","gaussian",
+                "-d","data/stick/val.hdf5",
+                "--model","UNet",
+                "--metric","mse",
                 "--combine","select",
                 "--samples","8",
-                "--legswap","0.5",
-                "--armswap","0.1",
-                "--checkpoint","599"]
+                "--legswaps","0.5",
+                "--armswaps","0.1",
+                "--allcheckpoints"]
         }
     ]
 }

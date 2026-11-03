@@ -1,3 +1,4 @@
+import argparse
 import json
 import numpy as np
 import copy
@@ -19,29 +20,42 @@ import models.utils.loss_functions as lf
 
 from dataset import HDF5Sampler
 from dataset import HDF5Dataset
-from models.unet import UNet, UNetLarge
+from models.unet import UNet
 from models.unet_pretrained import UNetPretrained
 
-data_file = "data/stick/val.hdf5"
-network = UNetLarge
-folder_name = "mse_s16"
-checkpoint = "network_899.pth"
-samples = 100
-leg_swaps = 0.0 #0.5
-arm_swaps = 0.0 #0.1
-loss_function = lf.heatmap_target_mse
-sample_method = "select"
+parser = argparse.ArgumentParser()
+parser.add_argument('--datafile', '-d', nargs='?', default="data/stick/val.hdf5")
+parser.add_argument('--model', '-m', nargs='?', default='UNet', choices=['UNet', 'UNetPretrained'])
+parser.add_argument('--folder', '-f', nargs='?', default="mse_s16")
+parser.add_argument('--checkpoint', '-cp', nargs='?', default="network_899.pth")
+parser.add_argument('--loss', '-l', nargs='?', default='mse', choices=['mse', 'gaussian', 'dkl'])
+parser.add_argument('--samples', '-sm', nargs='?', default=100, type=int)
+parser.add_argument('--legswaps', '-ls', nargs='?', default=0.0, type=float)
+parser.add_argument('--armswaps', '-as', nargs='?', default=0.0, type=float)
+parser.add_argument('--seed', nargs='?', default=26, type=int)
+parser.add_argument('--title', '-t', nargs='?', default="a)")
+parser.add_argument('--save', nargs='?', default=None)
+args = parser.parse_args()
+
+data_file = args.datafile
+network = UNet if args.model == 'UNet' else UNetPretrained
+folder_name = args.folder
+checkpoint = args.checkpoint
+samples = args.samples
+leg_swaps = args.legswaps
+arm_swaps = args.armswaps
+loss_function = {'mse': lf.heatmap_target_mse, 'gaussian': lf.gaussian_nll, 'dkl': lf.heatmap_target_dkl}[args.loss]
 
 val_data = HDF5Dataset(
     data_file,
     leg_swaps = leg_swaps,
-    arm_swaps = leg_swaps,
+    arm_swaps = arm_swaps,
     generate_heatmaps=True,
     device="cuda:0")
 
 val_sampler = HDF5Sampler(
     data_source=val_data,
-    seed=26)
+    seed=args.seed)
 
 val_loader = torch.utils.data.DataLoader(
     val_data,
@@ -54,7 +68,6 @@ model.train(False)
 
 state_dict = torch.load("output/{}/state_dict/{}".format(folder_name, checkpoint))
 model.load_state_dict(state_dict)
-model.training = False
 
 with torch.no_grad():
     val_iter = iter(val_loader)
@@ -190,14 +203,18 @@ bestpose = torch.argmax(probs)
 plotPosesOnImage([pred_cpu[bestpose].detach(), pose_cpu[0]], val_data.denormalize(image_cpu[0])[[2,1,0],:,:], ax=axes[0], labels=['prediction', 'ground truth label'])
 
 # plot the predicted probability map and the predicted pose on top
-if (loss_function == lf.heatmap_target_dkl) :
-    plotMultiPosesOnImage(pred_cpu.detach(), logheatmap2image(heatmap_cpu[bestpose]).detach(), ax=axes[1], label='predictions')
-else:
+# MSE heatmaps are plotted as-is; DKL and Gaussian heatmaps are log-probabilities
+if args.loss == 'mse':
     plotMultiPosesOnImage(pred_cpu.detach(), heatmap2image(heatmap_cpu[bestpose]).detach(), ax=axes[1], label='predictions')
+else:
+    plotMultiPosesOnImage(pred_cpu.detach(), logheatmap2image(heatmap_cpu[bestpose]).detach(), ax=axes[1], label='predictions')
 
-plt.suptitle("a)", x=0, ha='left')
+plt.suptitle(args.title, x=0, ha='left')
 axes[0].axis('off')
 axes[1].axis('off')
-plt.show()
+if args.save:
+    plt.savefig(args.save)
+else:
+    plt.show()
 image_modified = val_data.denormalize(image_cpu[0])
 print('done')

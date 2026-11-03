@@ -18,7 +18,7 @@ class UNetCenter(nn.Module):
     def _initialize(self):
         for name, m in self.named_modules():
             if isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight, str='relu')
+                nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
     
     def forward(self, x, z):
         out = self.relu(self.vectorize(x.view(-1, torch.prod(self.input_shape))))
@@ -44,9 +44,9 @@ class UNetStage(nn.Module):
     def _initialize(self):
         for name, m in self.named_modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, str='relu')
+                nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
             elif isinstance(m, nn.ConvTranspose2d):
-                nn.init.kaiming_normal_(m.weight, str='relu')
+                nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
     
     def forward(self, x, z):
         out = self.relu(self.bn1(self.conv1(x)))
@@ -90,7 +90,7 @@ class UNet(nn.Module):
     def _initialize(self):
         for name, m in self.named_modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, str='relu')
+                nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
 
     def forward(self, x, z):
         out = self.initial(x['image'])
@@ -122,43 +122,30 @@ class UNet(nn.Module):
         return self.loss(self.forward(x, noise), x)
 
     def mixed_sample_backward(self, x, n):
-        net_grad = {}
-        for i in range(n):
-            z = torch.randn((x['image'].shape[0], self.noise_length), device = x['image'].device)
-            pred = self.forward(x, z)
-            nll = torch.mean(self.loss(pred, x))
-            self.zero_grad()
-            nll.backward()
-            with torch.no_grad():
-                if i==0:
-                    for name, param in self.named_parameters():
-                        net_grad[name] = param.grad.detach().clone()
-                    net_nll = nll
-                else:
-                    stabilizer = torch.maximum(net_nll, nll)
-                    for name, param in self.named_parameters():
-                        net_grad[name] = (
-                            (torch.exp(net_nll - stabilizer) * param.grad
-                            + torch.exp(nll - stabilizer) * net_grad[name])
-                            / (torch.exp(net_nll - stabilizer) + torch.exp(nll - stabilizer)))
-                    net_nll = -torch.log(torch.exp(-net_nll + stabilizer) + torch.exp(-nll + stabilizer)) + stabilizer
         with torch.no_grad():
-            for name, param in self.named_parameters():
-                param.grad = net_grad[name]
-            return net_nll
+            noise = []
+            nlls = []
+            for i in range(n):
+                z = torch.randn((x['image'].shape[0], self.noise_length), device = x['image'].device)
+                noise.append(z)
+                nlls.append(self.loss(self.forward(x, z), x))
+            nlls = torch.stack(nlls)
+            weights = torch.softmax(-nlls, dim=0) / nlls.shape[1]
+            net_nll = torch.mean(log(n) - torch.logsumexp(-nlls, dim=0))
+        self.zero_grad()
+        for i in range(n):
+            nll = self.loss(self.forward(x, noise[i]), x)
+            torch.sum(weights[i] * nll).backward()
+        return net_nll
 
     def mixed_sample_loss(self, x, n):
         with torch.no_grad():
+            nlls = []
             for i in range(n):
                 z = torch.randn((x['image'].shape[0], self.noise_length), device = x['image'].device)
                 pred = self.forward(x, z)
-                nll = torch.mean(self.loss(pred, x))
-                if i==0:
-                    net_nll = nll
-                else:
-                    stabilizer = torch.maximum(net_nll, nll)
-                    net_nll = -torch.log(torch.exp(-net_nll + stabilizer) + torch.exp(-nll + stabilizer)) + stabilizer
-            return net_nll
+                nlls.append(self.loss(pred, x))
+            return torch.mean(log(n) - torch.logsumexp(-torch.stack(nlls), dim=0))
 
     def gaussian_fit(self, pred):
         n, c, h, w = pred.shape
@@ -182,11 +169,3 @@ class UNet(nn.Module):
         presence_prob = 1 - 1 / (exp_max_ * z + 1).view(n, c)
 
         return torch.stack((x_means, y_means, x_var, y_var, xy_covar, presence_prob), -1)
-
-class UNetLarge(UNet):
-    name = "unet"
-    min_channels = 32
-    max_channels = 256
-
-    def __init__(self, loss_function, input_size, noise_length = 32, n_stages = None):
-        super(UNetLarge, self).__init__(loss_function, input_size, noise_length, n_stages)

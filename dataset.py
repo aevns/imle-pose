@@ -72,13 +72,13 @@ class HDF5Dataset(torch.utils.data.Dataset):
         self.image_buffer = torch.tensor(self.hdf5['images'][chunk], dtype=torch.float, device=self.device)
         
         if self.arm_swaps > 0:
-            swaps = torch.rand(self.pose_buffer.shape[0], device=Device) < self.arm_swaps
-            swapped_indices = torch.tensor([0,1,2,3,4,6,5,8,7,10,9,11,12,13,14,15,16], dtype=torch.long, device=Device)
+            swaps = torch.rand(self.pose_buffer.shape[0], device=self.device) < self.arm_swaps
+            swapped_indices = torch.tensor([0,1,2,3,4,6,5,8,7,10,9,11,12,13,14,15,16], dtype=torch.long, device=self.device)
             self.pose_buffer[swaps] = self.pose_buffer[swaps][:,swapped_indices]
         
         if self.leg_swaps > 0:
-            swaps = torch.rand(self.pose_buffer.shape[0], device=Device) < self.leg_swaps
-            swapped_indices = torch.tensor([0,1,2,3,4,5,6,7,8,9,10,12,11,14,13,16,15], dtype=torch.long, device=Device)
+            swaps = torch.rand(self.pose_buffer.shape[0], device=self.device) < self.leg_swaps
+            swapped_indices = torch.tensor([0,1,2,3,4,5,6,7,8,9,10,12,11,14,13,16,15], dtype=torch.long, device=self.device)
             self.pose_buffer[swaps] = self.pose_buffer[swaps][:,swapped_indices]
 
     # converted from SimplePose target generator

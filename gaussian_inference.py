@@ -1,3 +1,4 @@
+import argparse
 import json
 import numpy as np
 import copy
@@ -19,18 +20,30 @@ import models.utils.loss_functions as lf
 
 from dataset import HDF5Sampler
 from dataset import HDF5Dataset
-from models.unet import UNet, UNetLarge
+from models.unet import UNet
 from models.unet_pretrained import UNetPretrained
 
-data_file = "data/stick/val.hdf5"
-network = UNetLarge
-folder_name = "gauss_m16"
-checkpoint = "network_899.pth"
-samples = 100
-leg_swaps = 0.0 #0.5
-arm_swaps = 0.0 #0.1
+parser = argparse.ArgumentParser()
+parser.add_argument('--datafile', '-d', nargs='?', default="data/stick/val.hdf5")
+parser.add_argument('--model', '-m', nargs='?', default='UNet', choices=['UNet', 'UNetPretrained'])
+parser.add_argument('--folder', '-f', nargs='?', default="gauss_m16")
+parser.add_argument('--checkpoint', '-cp', nargs='?', default="network_899.pth")
+parser.add_argument('--samples', '-sm', nargs='?', default=100, type=int)
+parser.add_argument('--legswaps', '-ls', nargs='?', default=0.0, type=float)
+parser.add_argument('--armswaps', '-as', nargs='?', default=0.0, type=float)
+parser.add_argument('--seed', nargs='?', default=26, type=int)
+parser.add_argument('--title', '-t', nargs='?', default="a)")
+parser.add_argument('--save', nargs='?', default=None)
+args = parser.parse_args()
+
+data_file = args.datafile
+network = UNet if args.model == 'UNet' else UNetPretrained
+folder_name = args.folder
+checkpoint = args.checkpoint
+samples = args.samples
+leg_swaps = args.legswaps
+arm_swaps = args.armswaps
 loss_function = lf.gaussian_nll
-sample_method = "select"
 
 val_data = HDF5Dataset(
     data_file,
@@ -41,7 +54,7 @@ val_data = HDF5Dataset(
 
 val_sampler = HDF5Sampler(
     data_source=val_data,
-    seed=26) #26
+    seed=args.seed)
 
 val_loader = torch.utils.data.DataLoader(
     val_data,
@@ -198,9 +211,12 @@ plotMultiPosesOnImage(pred_cpu.detach(), heatmap2image(heatmap_cpu[bestpose]).de
 plot_pose_confidence(pred_cpu[bestpose].detach(), axes[0])
 plot_pose_confidence(pred_cpu[bestpose].detach(), axes[1])
 
-plt.suptitle("a)", x=0, ha='left')
+plt.suptitle(args.title, x=0, ha='left')
 axes[0].axis('off')
 axes[1].axis('off')
-plt.show()
+if args.save:
+    plt.savefig(args.save)
+else:
+    plt.show()
 image_modified = val_data.denormalize(image_cpu[0])
 print('done')
